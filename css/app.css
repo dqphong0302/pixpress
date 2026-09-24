@@ -126,6 +126,57 @@ kbd {
 .px-has-items .px-hero { display: none; }
 .px-has-items .px-main { padding-top: 1.25rem; }
 
+/* ---------- Tab công cụ ---------- */
+.px-modes {
+  display: flex;
+  gap: 4px;
+  margin: 0 0 14px;
+  padding: 4px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  background: var(--bg-card);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.px-modes::-webkit-scrollbar { display: none; }
+.px-modes button {
+  flex: 1 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: none;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color .15s, color .15s;
+}
+.px-modes button:hover:not(.on) { background: var(--bg-card-subtle); color: var(--text-main); }
+.px-modes button.on { background: var(--primary-light); color: var(--primary); font-weight: 600; }
+.px-modes .px-ico { width: 18px; height: 18px; }
+
+/* Mỗi tab chỉ hiện đúng công cụ và tùy chọn của nó. */
+body:not(.px-mode-visa) .px-only-visa,
+body:not(.px-mode-visa) #aspectChips [data-a="visa"],
+body:not(.px-mode-redact) #redactBtn,
+.px-mode-visa #groupPrivacy,
+.px-mode-visa #groupPresets,
+.px-mode-visa #groupFormat,
+.px-mode-visa #qualityGroup,
+.px-mode-visa #groupSize,
+.px-mode-visa #aspectChips button:not([data-a="visa"]),
+.px-mode-visa #cropReset,
+.px-mode-visa #collageBtn,
+.px-mode-redact #cropBtn,
+.px-mode-redact #collageBtn { display: none !important; }
+
 /* ---------- Dropzone ---------- */
 .px-drop {
   display: flex;
@@ -203,6 +254,7 @@ kbd {
 .px-tool:hover { background: var(--bg-card-subtle); color: var(--text-main); }
 .px-tool:active { transform: scale(0.94); }
 .px-tool.on { background: var(--primary-light); color: var(--primary); }
+.px-tool--danger:hover { background: var(--danger-light); color: var(--danger); }
 .px-toolsep { width: 1px; height: 20px; margin: 0 4px; background: var(--border-color); }
 /* Tooltip */
 .px-tool::after {
@@ -940,4 +992,15 @@ html.dark .px-seg button.on { background: var(--bg-control-hover); }
   .px-sum-actions { width: 100%; }
   .px-sum-actions .px-btn { flex: 1; }
   .px-tool::after { display: none; }
+  /* Tab: biểu tượng trên, chữ dưới, chia đều 3 cột */
+  .px-modes { overflow: visible; }
+  .px-modes button { flex: 1 1 0; min-width: 0; flex-direction: column; gap: 3px; height: auto; min-height: 52px; padding: 6px 4px; font-size: 0.76rem; line-height: 1.2; white-space: normal; text-align: center; }
+  /* Thanh công cụ: nhóm nút trải hết một hàng, nút Tải xuống hàng dưới */
+  .px-toolbar { flex-wrap: wrap; }
+  .px-toolgroup { flex: 1 1 100%; justify-content: space-between; }
+  .px-tool { flex: 1 1 0; min-width: 28px; width: auto; }
+  .px-toolsep { margin: 0 1px; }
+  #dlOneBtn { flex: 1 1 100%; }
+  .px-cropbar-actions { flex-wrap: wrap; }
+  .px-cropbar-actions .px-btn--ai { flex-basis: 100%; }
 }

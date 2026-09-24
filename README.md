@@ -15,7 +15,7 @@
 | 📐 **FitMode** — Resize | Cạnh dài tối đa, theo %, hoặc Rộng × Cao chính xác (có khóa tỷ lệ) |
 | 📘 **FB-HD 2048** | Một chạm: cạnh dài ≤ 2048 px, JPG 92% — cỡ Facebook giữ nét, không nén lại |
 | ✂️ **CropMode** — Cắt ảnh | Kéo thả khung cắt, tỷ lệ Tự do / Gốc / 1:1 / 4:5 / 16:9 / 9:16 / 3:2 / 3:4 / 1.91:1, xoay 90°, lật ngang |
-| 🛡️ **ClearMode** — Metadata & AI | Phát hiện rồi xóa EXIF, GPS, thiết bị, C2PA/Content Credentials, prompt AI (Midjourney, Stable Diffusion, ComfyUI…). 3 chế độ: *Xóa sạch*, *Khử watermark AI* (thêm nhiễu Gauss σ≈1.5 phá watermark ẩn kiểu SynthID), *Chỉ xóa* (gỡ metadata trên byte, không nén lại — JPEG/PNG/WebP, giữ hồ sơ màu ICC) |
+| 🛡️ **ClearMode** — Metadata & AI | Phát hiện rồi xóa EXIF, GPS, thiết bị, C2PA/Content Credentials, prompt AI (Midjourney, Stable Diffusion, ComfyUI…). 3 chế độ: *Xóa + nén*, *Chỉ xóa* (gỡ metadata trên byte, không nén lại — JPEG/PNG/WebP, giữ hồ sơ màu ICC), *Chống AI* (thêm nhiễu Gauss Nhẹ/Vừa/Mạnh phá watermark ẩn kiểu SynthID) |
 | 📱 **Ảnh iPhone** | Nhận HEIC/HEIF; Safari giải mã sẵn, Chrome/Firefox dùng libheif (WASM, `heic-to`) chỉ tải khi gặp ảnh HEIC |
 | 🙈 **Che vùng nhạy cảm** | Vẽ hình chữ nhật, elip hoặc tô cọ; hiệu ứng làm mờ, pixel hóa hoặc tô đen; áp trên ảnh gốc độ phân giải đầy đủ, xoay/lật theo ảnh (phím `B`) |
 | 🪪 **Ảnh visa Việt Nam** | Theo evisa.gov.vn: 4×6 cm, JPG/JPEG, ≤ 2 MB, nền trắng, nhìn thẳng, không mũ, không kính. Xuất 600×900 px, khung cắt có hướng dẫn vị trí mặt, tự kiểm tra nền trắng |

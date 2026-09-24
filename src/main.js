@@ -22,7 +22,6 @@ const toast = (msg, type = 'success') => window.PDUI?.Toast.show(msg, type, 3000
 const PRESETS = {
   none: { format: 'keep', quality: 92, resizeMode: 'none' },
   fb: { format: 'jpeg', quality: 92, resizeMode: 'fb' },
-  visa: { format: 'jpeg', quality: 92, resizeMode: 'visa' },
   web: { format: 'webp', quality: 80, resizeMode: 'max', maxSide: 1600 },
   tiny: { format: 'webp', quality: 65, resizeMode: 'max', maxSide: 1280 }
 };
@@ -33,13 +32,26 @@ const STORE_KEY = 'pixpress_settings';
 
 let settings = { ...DEFAULTS };
 try { Object.assign(settings, JSON.parse(localStorage.getItem(STORE_KEY) || '{}')); } catch {}
+// Ảnh visa giờ là tab riêng; bỏ lựa chọn cũ đã lưu.
+if (settings.resizeMode === 'visa') settings.resizeMode = 'none';
 
 function saveSettings() {
   try { localStorage.setItem(STORE_KEY, JSON.stringify(settings)); } catch {}
 }
 
+/* ---------------- Tab công cụ ---------------- */
+
+const MODES = { edit: '', visa: 'visa', redact: 'che-vung' };
+let mode = Object.keys(MODES).find(m => MODES[m] && `#${MODES[m]}` === location.hash) || 'edit';
+
+/** Tùy chọn thực tế theo tab: tab visa luôn xuất JPG 600×900 ≤ 2 MB, không phụ thuộc tùy chọn nén. */
+function opts() {
+  return mode === 'visa' ? { ...settings, privacy: 'clean', format: 'jpeg', quality: 92, resizeMode: 'visa' } : settings;
+}
+
 function engineOptions() {
-  return { ...settings, quality: settings.quality / 100 };
+  const o = opts();
+  return { ...o, quality: o.quality / 100 };
 }
 
 let encoders = { jpeg: true, png: true, webp: true, avif: false };
@@ -92,7 +104,7 @@ async function runItem(it) {
     if (!it.bitmap) await loadBitmap(it);
     let res = null;
     it.fallback = '';
-    if (settings.privacy === 'lossless') {
+    if (opts().privacy === 'lossless') {
       const edited = it.edit.rotate || it.edit.flipH || it.edit.crop;
       if (edited) it.fallback = 'Ảnh đã được cắt/xoay nên phải vẽ lại thay vì chỉ xóa metadata.';
       else if (it.meta?.orientation !== 1) it.fallback = 'Ảnh dùng thẻ xoay EXIF (thường gặp ở ảnh điện thoại) nên được vẽ lại để giữ đúng hướng.';
@@ -101,10 +113,10 @@ async function runItem(it) {
         if (!res) it.fallback = 'Định dạng này (vd. HEIC của iPhone) không xóa trực tiếp được nên được vẽ lại thành JPG.';
       }
     }
-    const whiteBg = settings.resizeMode === 'visa' && settings.aiWhiteBg;
+    const whiteBg = opts().resizeMode === 'visa' && settings.aiWhiteBg;
     if (whiteBg && !res) await ensureBgMask(it);
     // Vẽ lại qua canvas luôn làm mất toàn bộ metadata; khi dự phòng cho "chỉ xóa" thì giữ nguyên kích thước, chất lượng cao.
-    res ??= await processImage(it.file, it.bitmap, it.edit, settings.privacy === 'lossless'
+    res ??= await processImage(it.file, it.bitmap, it.edit, opts().privacy === 'lossless'
       ? { ...engineOptions(), resizeMode: 'none', quality: 0.95, privacy: 'clean' }
       : { ...engineOptions(), whiteBg });
     if (run !== it.runs || !items.includes(it)) return;
@@ -137,7 +149,13 @@ async function ensureBgMask(it) {
   }
 }
 
-async function loadBitmap(it) {
+/** Giải mã một lần dù được gọi song song (hàng đợi và công cụ của tab cùng cần ảnh). */
+function loadBitmap(it) {
+  it.loading ??= decodeItem(it).catch(err => { it.loading = null; throw err; });
+  return it.loading;
+}
+
+async function decodeItem(it) {
   const metaTask = inspectMetadata(it.file).catch(() => ({ findings: [], orientation: 1 }));
   it.bitmap = await decode(it.file);
   it.meta = await metaTask;
@@ -299,6 +317,19 @@ function select(it) {
   renderQueueItem(it);
   $('busy').hidden = it.status === 'done' || it.status === 'error';
   renderActive();
+  openModeTool();
+}
+
+/** Mỗi tab mở sẵn công cụ của nó: visa → khung 4×6 (tự căn mặt lần đầu), che vùng → lớp vẽ. */
+async function openModeTool() {
+  const it = active;
+  if (!it) return;
+  if (mode === 'visa' && !it.edit.crop) {
+    await enterCrop();
+    if (cropping && active === it && !it.autoAligned) { it.autoAligned = true; alignFace(); }
+  } else if (mode === 'redact' && !it.edit.redact) {
+    enterRedact();
+  }
 }
 
 function renderActive() {
@@ -347,7 +378,7 @@ function renderActive() {
 
   const notes = [];
   if (it.fallback) notes.push(it.fallback);
-  if (it.aiError && settings.resizeMode === 'visa') notes.push(it.aiError);
+  if (it.aiError && opts().resizeMode === 'visa') notes.push(it.aiError);
   if (r.visa) {
     const v = r.visa;
     const issues = [];
@@ -369,11 +400,11 @@ function renderActive() {
       : f
         ? 'Ảnh visa đạt khổ 4×6 (600×900 px), JPG, ≤ 2 MB, nền sáng; AI thấy một khuôn mặt, nhìn thẳng, mắt mở. Tự kiểm tra thêm: không đội mũ, không đeo kính, trang phục lịch sự.'
         : 'Ảnh visa đạt khổ 4×6 (600×900 px), JPG, ≤ 2 MB, nền sáng. Tự kiểm tra thêm: nhìn thẳng, không đội mũ, không đeo kính, trang phục lịch sự.');
-    if (!it.edit.crop) notes.push('Mẹo: bấm Cắt rồi "Tự căn mặt · AI" để mắt nằm đúng vạch 2/3.');
+    if (!it.edit.crop) notes.push('Mẹo: bấm Căn khung rồi "Tự căn mặt · AI" để mắt nằm đúng vạch 2/3.');
   }
   if (r.deltaPct < 0 && !r.lossless) notes.push('Ảnh xuất lớn hơn ảnh gốc — ảnh gốc đã được nén sẵn, hoặc bạn đang xuất PNG / chất lượng cao. Thử giảm chất lượng hoặc chọn WebP.');
-  if (settings.resizeMode === 'visa' && Math.min(r.origW, r.origH) < 600) notes.push('Ảnh gốc nhỏ hơn 600 px nên phải phóng to lên 600×900; nên chụp lại ảnh nét hơn.');
-  if (settings.resizeMode === 'fb' && Math.max(r.w, r.h) < FB_MAX_SIDE) notes.push(`Vùng ảnh nhỏ hơn ${FB_MAX_SIDE} px nên được giữ nguyên kích thước (PixPress không phóng to ảnh).`);
+  if (opts().resizeMode === 'visa' && Math.min(r.origW, r.origH) < 600) notes.push('Ảnh gốc nhỏ hơn 600 px nên phải phóng to lên 600×900; nên chụp lại ảnh nét hơn.');
+  if (opts().resizeMode === 'fb' && Math.max(r.w, r.h) < FB_MAX_SIDE) notes.push(`Vùng ảnh nhỏ hơn ${FB_MAX_SIDE} px nên được giữ nguyên kích thước (PixPress không phóng to ảnh).`);
   if (notes.length) { warn.textContent = notes.join(' '); warn.hidden = false; }
 }
 
@@ -540,14 +571,15 @@ async function enterCrop() {
   cropBackup = { ...it.edit, crop: it.edit.crop && { ...it.edit.crop } };
   cropper ??= createCropper($('cropHost'));
   // Đang dùng mẫu visa thì mở sẵn khung 4×6 kèm hướng dẫn vị trí khuôn mặt.
-  const startChip = settings.resizeMode === 'visa' ? 'visa' : 'free';
+  const startChip = mode === 'visa' ? 'visa' : 'free';
   $('aspectChips').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.a === startChip));
   $('cropHost').hidden = false;
   $('previewImg').hidden = true;
   $('cropBar').hidden = false;
   $('cropBtn').classList.add('on');
   $('stage').classList.add('px-stage--crop');
-  loadCropper(it, it.edit.crop);
+  const keep = mode !== 'visa' || Math.abs((it.edit.crop?.aspect ?? 0) - VISA_VN.w / VISA_VN.h) < 0.002;
+  loadCropper(it, keep ? it.edit.crop : null);
 }
 
 function exitCrop(apply) {
@@ -654,9 +686,9 @@ function syncRedactBar() {
 /* ---------------- Settings UI ---------------- */
 
 const PRIVACY_HINT = {
-  clean: 'Nén/đổi ảnh như bình thường; mọi EXIF, GPS, thông tin máy, C2PA và prompt AI đều bị loại khỏi ảnh xuất.',
-  paranoid: 'Như "Xóa sạch", thêm nhiễu để làm hỏng watermark AI ẩn như SynthID. Nhiễu càng mạnh càng khó phát hiện watermark nhưng ảnh càng sần và file càng nặng; không đảm bảo xóa hoàn toàn.',
-  lossless: 'Chỉ gỡ khối metadata, không nén lại nên chất lượng giữ nguyên 100%. Các tùy chọn định dạng, chất lượng, kích thước tạm không áp dụng.'
+  clean: 'Nên dùng. Xóa vị trí GPS, ngày chụp, tên máy, dấu "tạo bởi AI" (C2PA, prompt) rồi nén ảnh theo tùy chọn bên dưới.',
+  lossless: 'Chỉ xóa các thông tin ẩn đó, không nén lại: ảnh giữ nguyên 100%, dung lượng gần như không đổi. Tùy chọn định dạng, chất lượng, kích thước tạm tắt.',
+  paranoid: 'Dành cho ảnh do AI tạo: ngoài xóa thông tin, thêm một lớp nhiễu nhỏ để làm hỏng watermark vô hình (như SynthID của Google). Nhiễu càng mạnh càng hiệu quả nhưng ảnh càng sần; không đảm bảo 100%.'
 };
 
 function syncSettingsUI() {
@@ -683,7 +715,6 @@ function syncSettingsUI() {
   $('resizeMode').value = settings.resizeMode;
   document.querySelectorAll('.px-sub').forEach(el => { el.hidden = el.dataset.for !== settings.resizeMode; });
   $('fbTip').hidden = settings.resizeMode !== 'fb';
-  $('visaTip').hidden = settings.resizeMode !== 'visa';
   $('aiWhiteBg').checked = settings.aiWhiteBg;
   $('maxSide').value = settings.maxSide;
   $('percent').value = settings.percent;
@@ -753,7 +784,7 @@ function bindSettings() {
 /* ---------------- Downloads ---------------- */
 
 function outName(it) {
-  return `${baseName(it.name)}-pixpress.${it.result.ext}`;
+  return `${baseName(it.name)}-${it.result.visa ? 'visa' : 'pixpress'}.${it.result.ext}`;
 }
 
 function downloadBlob(blob, name) {
@@ -883,6 +914,8 @@ function bindTools() {
   $('flipBtn').addEventListener('click', flip);
   $('compareBtn').addEventListener('click', openCompare);
   $('dlOneBtn').addEventListener('click', () => downloadOne(active));
+  $('addMoreBtn').addEventListener('click', () => $('fileInput').click());
+  $('removeOneBtn').addEventListener('click', () => active && removeItem(active));
   $('cropApply').addEventListener('click', () => exitCrop(true));
   $('cropCancel').addEventListener('click', () => exitCrop(false));
   $('cropReset').addEventListener('click', () => {
@@ -928,11 +961,73 @@ function bindTools() {
     if (redacting && e.key === 'Escape') return exitRedact(false);
     if (redacting && e.key === 'Enter') return exitRedact(true);
     if (cropping && e.key === 'Escape') return exitCrop(false);
+    if (!cropping && !redacting && active && (e.key === 'Delete' || e.key === 'Backspace')) { e.preventDefault(); return removeItem(active); }
     if (cropping && e.key === 'Enter') return exitCrop(true);
     if (!active || e.metaKey || e.ctrlKey || e.altKey) return;
-    if (e.key === 'c' || e.key === 'C') cropping ? exitCrop(true) : enterCrop();
-    if (e.key === 'b' || e.key === 'B') redacting ? exitRedact(true) : enterRedact();
+    if ((e.key === 'c' || e.key === 'C') && mode !== 'redact') cropping ? exitCrop(true) : enterCrop();
+    if ((e.key === 'b' || e.key === 'B') && mode === 'redact') redacting ? exitRedact(true) : enterRedact();
   });
+}
+
+const MODE_COPY = {
+  edit: {
+    title: 'Nén, resize và cắt ảnh — vừa khít mọi nơi',
+    lead: 'Giảm dung lượng, đổi định dạng, cắt theo tỷ lệ, xuất đúng chuẩn <strong>Facebook HD 2048&nbsp;px</strong> và xóa sạch metadata cùng dấu vết AI. Nhận cả ảnh <strong>HEIC của iPhone</strong>. Mọi xử lý diễn ra ngay trên trình duyệt của bạn.',
+    drop: 'Kéo thả ảnh vào đây'
+  },
+  visa: {
+    title: 'Ảnh thẻ visa Việt Nam 4×6 — đúng chuẩn evisa',
+    lead: 'Tải ảnh chân dung lên: AI tự căn <strong>mắt đúng vạch 2/3</strong>, đổi <strong>nền trắng</strong>, kiểm tra nhìn thẳng, mắt mở, rồi xuất <strong>JPG 600×900&nbsp;px ≤ 2&nbsp;MB</strong>. Ảnh không rời máy bạn.',
+    drop: 'Kéo thả ảnh chân dung vào đây'
+  },
+  redact: {
+    title: 'Che thông tin nhạy cảm trước khi chia sẻ',
+    lead: 'Làm mờ, làm pixel hoặc tô đen <strong>CCCD, biển số, số điện thoại, khuôn mặt</strong> bằng khung, elip hay cọ tô. AI tìm và che mọi khuôn mặt chỉ với một chạm. Ảnh không rời máy bạn.',
+    drop: 'Kéo thả ảnh cần che vào đây'
+  }
+};
+
+function setMode(next, { initial = false } = {}) {
+  if (!MODE_COPY[next]) next = 'edit';
+  if (!initial && next === mode) return;
+  if (cropping) exitCrop(true);
+  if (redacting) exitRedact(true);
+  mode = next;
+  for (const m of Object.keys(MODES)) document.body.classList.toggle(`px-mode-${m}`, m === mode);
+  $('modeTabs').querySelectorAll('[role="tab"]').forEach(b => {
+    const on = b.dataset.mode === mode;
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-selected', String(on));
+    b.tabIndex = on ? 0 : -1;
+  });
+  const copy = MODE_COPY[mode];
+  $('heroTitle').textContent = copy.title;
+  $('heroLead').innerHTML = copy.lead;
+  $('dropTitle').textContent = copy.drop;
+  $('cropBtn').dataset.tip = mode === 'visa' ? 'Căn khung 4×6 · C' : 'Cắt · C';
+  $('cropBtn').setAttribute('aria-label', mode === 'visa' ? 'Căn khung ảnh visa 4×6' : 'Cắt ảnh');
+  if (!initial) {
+    history.replaceState(null, '', MODES[mode] ? `#${MODES[mode]}` : location.pathname + location.search);
+    syncSettingsUI();
+    if (items.length) enqueue([...items]);
+    openModeTool();
+  }
+}
+
+function bindModes() {
+  const tabs = [...$('modeTabs').querySelectorAll('[role="tab"]')];
+  $('modeTabs').addEventListener('click', e => {
+    const b = e.target.closest('[role="tab"]');
+    if (b) setMode(b.dataset.mode);
+  });
+  $('modeTabs').addEventListener('keydown', e => {
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+    const i = tabs.findIndex(b => b.dataset.mode === mode);
+    const next = tabs[(i + (e.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length];
+    setMode(next.dataset.mode);
+    next.focus();
+  });
+  window.addEventListener('hashchange', () => setMode(Object.keys(MODES).find(m => MODES[m] && `#${MODES[m]}` === location.hash) || 'edit'));
 }
 
 async function init() {
@@ -948,8 +1043,10 @@ async function init() {
     b.disabled = true;
     if (settings.format === 'webp') settings.format = 'jpeg';
   }
+  setMode(mode, { initial: true });
   syncSettingsUI();
   bindSettings();
+  bindModes();
   bindInput();
   bindTools();
   bindCompare();
