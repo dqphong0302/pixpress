@@ -6,3 +6,10 @@
 
 /assets/*
   Cache-Control: public, max-age=31536000, immutable
+
+# Bộ chạy AI và mô hình: tên file không có hash, nên cache 30 ngày (đổi phiên bản thì đổi tên thư mục).
+/mediapipe/*
+  Cache-Control: public, max-age=2592000
+
+/models/*
+  Cache-Control: public, max-age=2592000

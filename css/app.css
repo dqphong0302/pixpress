@@ -271,8 +271,10 @@ html.dark .px-seg button.on { background: var(--bg-control-hover); }
 /* Stage */
 .px-stage {
   position: relative;
-  display: grid;
-  place-items: center;
+  /* Flex (không dùng grid): trong grid, max-height: 100% của ảnh không có hiệu lực nên ảnh dọc bị tràn và cắt mất. */
+  display: flex;
+  align-items: center;
+  justify-content: center;
   height: min(60vh, 600px);
   min-height: 300px;
   padding: 16px;
@@ -283,8 +285,11 @@ html.dark .px-seg button.on { background: var(--bg-control-hover); }
   overflow: hidden;
 }
 .px-preview {
+  display: block;
   max-width: 100%;
   max-height: 100%;
+  min-width: 0;
+  min-height: 0;
   object-fit: contain;
   border-radius: 4px;
   box-shadow: var(--shadow-floating);
@@ -316,7 +321,7 @@ html.dark .px-seg button.on { background: var(--bg-control-hover); }
 
 /* Cropper */
 .px-stage--crop { background-image: none; background-color: #0f141c; }
-.px-crop-host { width: 100%; height: 100%; display: grid; place-items: center; min-height: 0; }
+.px-crop-host { flex: 1 1 auto; align-self: stretch; min-width: 0; min-height: 0; display: flex; align-items: center; justify-content: center; }
 .px-crop-wrap { position: relative; overflow: hidden; touch-action: none; user-select: none; }
 .px-crop-canvas { display: block; width: 100%; height: 100%; }
 .px-crop-box {
@@ -616,6 +621,14 @@ html.dark .px-seg button.on { background: var(--bg-control-hover); }
   line-height: 1.55;
 }
 .px-tip strong { font-weight: 600; }
+.px-visa-tip { display: grid; grid-template-columns: 96px 1fr; gap: 12px; align-items: start; }
+.px-visa-sample { width: 96px; height: auto; border-radius: 4px; box-shadow: var(--shadow-sm); }
+.px-visa-list { margin: 6px 0 4px; padding-left: 16px; }
+.px-visa-list li { margin: 1px 0; }
+.px-visa-tip small { color: var(--text-muted); }
+.px-ai-row { align-items: flex-start; margin: 8px 0 6px; color: var(--text-main); font-size: 0.78rem; line-height: 1.4; }
+.px-ai-row .px-switch { margin-top: 2px; }
+.px-btn--ai .px-ico { color: var(--accent); }
 
 /* ---------- Batch ---------- */
 .px-batch {
@@ -711,39 +724,26 @@ html.dark .px-seg button.on { background: var(--bg-control-hover); }
 .px-q-dl:disabled { opacity: 0 !important; cursor: default; }
 @media (hover: none) { .px-q-dl, .px-q-del { opacity: 1; } }
 
-/* ---------- Features ---------- */
-.px-feats { margin-top: 56px; }
-.px-feats-title { margin: 12px 0 20px; font-size: 1.4rem; font-weight: 600; letter-spacing: -0.025em; }
-.px-feats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+/* ---------- Features (gọn: một hàng nhãn, mô tả nằm trong tooltip) ---------- */
+.px-feats { margin-top: 40px; }
+.px-feats-title { margin: 0 0 10px; color: var(--text-muted); font-size: 0.8rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
+.px-feats-grid { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
 .px-feat {
-  display: grid;
-  gap: 4px;
-  padding: 18px;
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-lg);
-  background: var(--bg-card);
-}
-.px-feat-ico {
-  width: 36px;
-  height: 36px;
-  display: grid;
-  place-items: center;
-  margin-bottom: 8px;
-  border-radius: var(--radius-md);
-  background: var(--primary-light);
-  color: var(--primary);
-}
-.px-feat b { font-size: 0.92rem; font-weight: 600; }
-.px-feat span:last-child { color: var(--text-muted); font-size: 0.84rem; line-height: 1.5; }
-.px-privacy {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 10px;
-  margin: 16px 0 0;
-  color: var(--text-muted);
-  font-size: 0.84rem;
+  gap: 6px;
+  padding: 4px 12px 4px 6px;
+  border: 1px solid var(--border-color);
+  border-radius: 99px;
+  background: var(--bg-card);
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: default;
 }
-.px-privacy .px-ico { color: var(--success); }
+.px-feat-ico { width: 22px; height: 22px; display: grid; place-items: center; border-radius: 50%; background: var(--primary-light); color: var(--primary); }
+.px-feat-ico .px-ico { width: 13px; height: 13px; }
+.px-privacy { display: flex; align-items: center; gap: 8px; margin: 12px 0 0; color: var(--text-muted); font-size: 0.8rem; }
+.px-privacy .px-ico { width: 16px; height: 16px; color: var(--success); }
 
 /* ---------- Compare modal ---------- */
 .px-modal {
@@ -816,11 +816,114 @@ html.dark .px-seg button.on { background: var(--bg-control-hover); }
 /* ---------- Footer ---------- */
 .pd-footer.pd-footer { background: transparent; font-size: 0.82rem; }
 
+/* ---------- Che vùng nhạy cảm ---------- */
+.px-redactbar { flex-direction: column; align-items: stretch; }
+.px-redact-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.px-redactbar .px-cropbar-actions { justify-content: flex-end; }
+.px-redactbar .px-hint { margin: 0; }
+.px-brush { display: inline-flex; align-items: center; gap: 8px; color: var(--text-muted); font-size: 0.8rem; }
+.px-brush .px-range { width: 120px; }
+.px-redact-wrap { position: relative; touch-action: none; user-select: none; }
+.px-redact-canvas { display: block; width: 100%; height: 100%; cursor: crosshair; }
+
+/* Khung gợi ý khuôn mặt cho ảnh thẻ 4×6 (không phải quy định số đo chính thức) */
+.px-crop-face { position: absolute; inset: 0; pointer-events: none; }
+.px-crop-face-oval {
+  position: absolute;
+  /* Đỉnh đầu ~8%, cằm ~62%: mắt (≈ giữa đầu) rơi đúng vạch 1/3 từ trên = 2/3 từ đáy */
+  left: 21%;
+  top: 8%;
+  width: 58%;
+  height: 54%;
+  border: 2px dashed rgba(255, 255, 255, 0.95);
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25);
+}
+.px-crop-face-eyes { position: absolute; left: 8%; right: 8%; top: 33.333%; border-top: 2px solid rgba(255, 214, 102, 0.95); }
+.px-crop-face-eyes em { position: absolute; right: 0; top: -18px; padding: 0 6px; border-radius: 4px; background: rgba(10, 13, 20, 0.7); color: #ffd666; font-size: 0.66rem; font-style: normal; }
+.px-crop-face-tip {
+  position: absolute;
+  left: 50%;
+  top: 3%;
+  transform: translateX(-50%);
+  padding: 1px 8px;
+  border-radius: 6px;
+  background: rgba(10, 13, 20, 0.7);
+  color: #fff;
+  font-size: 0.68rem;
+  white-space: nowrap;
+}
+
+/* ---------- Ghép ảnh ---------- */
+.px-collage { z-index: 950; }
+.px-collage-box { width: min(1180px, 100%); height: min(92vh, 860px); display: flex; flex-direction: column; }
+.px-collage-body { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 16px; }
+.px-collage-stage {
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  border-radius: var(--radius-lg);
+  background-color: var(--bg-card-subtle);
+  background-image: radial-gradient(var(--border-color) 1px, transparent 1px);
+  background-size: 16px 16px;
+}
+.px-collage-canvas { max-width: 100%; max-height: 100%; box-shadow: var(--shadow-floating); cursor: grab; touch-action: none; }
+.px-collage-canvas:active { cursor: grabbing; }
+.px-collage-side { min-height: 0; overflow-y: auto; display: grid; align-content: start; gap: 18px; padding-right: 4px; }
+.px-collage-side .px-group-title small { color: var(--text-subtle); font-weight: 400; }
+.px-layouts { display: grid; grid-template-columns: repeat(auto-fill, 44px); gap: 6px; }
+.px-layout {
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  padding: 6px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.px-layout svg { width: 100%; height: 100%; fill: var(--bg-card-subtle); stroke: currentColor; stroke-width: 1.2; }
+.px-layout:hover { border-color: var(--border-control); }
+.px-layout.on { border-color: var(--primary); color: var(--primary); box-shadow: 0 0 0 1px var(--primary); }
+.px-layout.on svg { fill: var(--primary-light); }
+.px-seg--wrap { display: flex; flex-wrap: wrap; }
+.px-seg--wrap button { flex: 1 0 auto; }
+.px-collage-sliders { display: grid; gap: 8px; }
+.px-collage-sliders label { display: grid; grid-template-columns: 90px 1fr; align-items: center; gap: 8px; color: var(--text-muted); font-size: 0.8rem; }
+.px-swatches { display: flex; flex-wrap: wrap; gap: 8px; }
+.px-swatch { position: relative; width: 30px; height: 30px; border: 1px solid var(--border-control); border-radius: 50%; cursor: pointer; }
+.px-swatch.on { box-shadow: 0 0 0 2px var(--bg-card), 0 0 0 4px var(--primary); }
+.px-swatch--pick { overflow: hidden; background: conic-gradient(red, yellow, lime, cyan, blue, magenta, red); }
+.px-swatch--pick input { position: absolute; inset: -6px; width: 44px; height: 44px; opacity: 0; cursor: pointer; }
+.px-collage-thumbs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.px-collage-thumb {
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  padding: 2px;
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg-card-subtle);
+  cursor: pointer;
+  opacity: 0.55;
+}
+.px-collage-thumb canvas { max-width: 100%; max-height: 100%; border-radius: 4px; }
+.px-collage-thumb.used { opacity: 1; border-color: var(--primary-border); }
+.px-collage-create { width: 100%; height: 44px; }
+
 /* ---------- Responsive ---------- */
 @media (max-width: 980px) {
+  .px-collage-box { height: 94vh; }
+  .px-collage-body { display: flex; flex-direction: column; }
+  .px-collage-stage { flex: 0 0 46%; }
+  .px-collage-side { flex: 1; min-height: 0; }
   .px-work { grid-template-columns: 1fr; }
   .px-panel { position: static; }
-  .px-feats-grid { grid-template-columns: 1fr 1fr; }
 }
 @media (max-width: 640px) {
   .px-main { padding-top: 1.5rem; }
@@ -833,7 +936,6 @@ html.dark .px-seg button.on { background: var(--bg-control-hover); }
   .px-cropbar-actions { width: 100%; }
   .px-cropbar-actions .px-btn { flex: 1; }
   .px-queue { grid-template-columns: 1fr; }
-  .px-feats-grid { grid-template-columns: 1fr; }
   .px-sum { gap: 20px; }
   .px-sum-actions { width: 100%; }
   .px-sum-actions .px-btn { flex: 1; }

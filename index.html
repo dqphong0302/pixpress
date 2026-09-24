@@ -51,6 +51,11 @@
       <symbol id="i-gauge" viewBox="0 0 24 24"><path d="m12 14 4-4"/><path d="M3.34 19a10 10 0 1 1 17.32 0"/></symbol>
       <symbol id="i-shield" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></symbol>
       <symbol id="i-image" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.09-3.09a2 2 0 0 0-2.82 0L6 21"/></symbol>
+      <symbol id="i-eye-off" viewBox="0 0 24 24"><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.53 13.53 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><path d="M14.12 14.12a3 3 0 1 1-4.24-4.24M2 2l20 20"/></symbol>
+      <symbol id="i-grid" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 12h18M12 3v18"/></symbol>
+      <symbol id="i-id" viewBox="0 0 24 24"><rect width="18" height="20" x="3" y="2" rx="2"/><circle cx="12" cy="10" r="3"/><path d="M7 18a5 5 0 0 1 10 0"/></symbol>
+      <symbol id="i-sparkles" viewBox="0 0 24 24"><path d="M9.94 15.5A2 2 0 0 0 8.5 14.06l-6.14-1.58a.5.5 0 0 1 0-.96L8.5 9.94A2 2 0 0 0 9.94 8.5l1.58-6.14a.5.5 0 0 1 .96 0l1.58 6.14a2 2 0 0 0 1.44 1.44l6.14 1.58a.5.5 0 0 1 0 .96l-6.14 1.58a2 2 0 0 0-1.44 1.44l-1.58 6.14a.5.5 0 0 1-.96 0z"/></symbol>
+      <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></symbol>
       <symbol id="i-arrow-right" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></symbol>
     </defs>
   </svg>
@@ -98,6 +103,7 @@
           <div class="px-toolbar" role="toolbar" aria-label="Công cụ chỉnh ảnh">
             <div class="px-toolgroup">
               <button class="px-tool" id="cropBtn" type="button" aria-label="Cắt ảnh" data-tip="Cắt · C"><svg class="px-ico"><use href="#i-crop"/></svg></button>
+              <button class="px-tool" id="redactBtn" type="button" aria-label="Che vùng nhạy cảm" data-tip="Che vùng · B"><svg class="px-ico"><use href="#i-eye-off"/></svg></button>
               <button class="px-tool" id="rotLBtn" type="button" aria-label="Xoay trái" data-tip="Xoay trái"><svg class="px-ico"><use href="#i-rotate-ccw"/></svg></button>
               <button class="px-tool" id="rotRBtn" type="button" aria-label="Xoay phải" data-tip="Xoay phải"><svg class="px-ico"><use href="#i-rotate-cw"/></svg></button>
               <button class="px-tool" id="flipBtn" type="button" aria-label="Lật ngang" data-tip="Lật ngang"><svg class="px-ico"><use href="#i-flip"/></svg></button>
@@ -118,17 +124,44 @@
               <button type="button" data-a="1.5">3:2</button>
               <button type="button" data-a="0.75">3:4</button>
               <button type="button" data-a="1.91">1.91:1</button>
+              <button type="button" data-a="visa">Visa 4×6</button>
             </div>
             <div class="px-cropbar-actions">
+              <button type="button" class="px-btn px-btn--secondary px-btn--ai" id="aiAlignBtn" hidden><svg class="px-ico"><use href="#i-sparkles"/></svg> Tự căn mặt · AI</button>
               <button type="button" class="px-btn px-btn--ghost" id="cropReset">Bỏ cắt</button>
               <button type="button" class="px-btn px-btn--secondary" id="cropCancel">Hủy</button>
               <button type="button" class="px-btn px-btn--primary" id="cropApply">Áp dụng</button>
             </div>
           </div>
 
+          <div class="px-cropbar px-redactbar" id="redactBar" hidden>
+            <div class="px-redact-row">
+              <div class="px-seg" id="redactToolSeg" role="group" aria-label="Cách vẽ">
+                <button type="button" data-v="rect">Chữ nhật</button>
+                <button type="button" data-v="ellipse">Elip</button>
+                <button type="button" data-v="brush">Cọ tô</button>
+              </div>
+              <div class="px-seg" id="redactEffectSeg" role="group" aria-label="Hiệu ứng che">
+                <button type="button" data-v="blur">Làm mờ</button>
+                <button type="button" data-v="pixel">Pixel</button>
+                <button type="button" data-v="black">Tô đen</button>
+              </div>
+              <label class="px-brush" id="brushRow" hidden>Cỡ cọ <input type="range" class="px-range" id="brushSize" min="10" max="120" value="40" aria-label="Cỡ cọ"></label>
+            </div>
+            <div class="px-cropbar-actions">
+              <button type="button" class="px-btn px-btn--secondary px-btn--ai" id="aiFacesBtn"><svg class="px-ico"><use href="#i-sparkles"/></svg> Tìm khuôn mặt · AI</button>
+              <button type="button" class="px-btn px-btn--ghost" id="redactUndo"><svg class="px-ico"><use href="#i-undo"/></svg>Hoàn tác</button>
+              <button type="button" class="px-btn px-btn--ghost" id="redactClear">Xóa hết</button>
+              <button type="button" class="px-btn px-btn--secondary" id="redactCancel">Hủy</button>
+              <button type="button" class="px-btn px-btn--primary" id="redactApply">Áp dụng</button>
+            </div>
+            <p class="px-hint" id="redactNote">Với chữ và số (CCCD, biển số, số điện thoại), nên dùng <strong>Pixel</strong> hoặc <strong>Tô đen</strong>: vùng làm mờ đôi khi vẫn đoán lại được.</p>
+          </div>
+
           <div class="px-stage" id="stage">
             <img id="previewImg" class="px-preview" alt="Ảnh sau khi xử lý" />
             <div class="px-crop-host" id="cropHost" hidden></div>
+            <div class="px-crop-host" id="redactHost" hidden></div>
             <div class="px-busy" id="busy" hidden><span class="px-spinner"></span>Đang xử lý</div>
           </div>
 
@@ -192,6 +225,10 @@
                 <span class="px-preset-ico"><svg class="px-ico"><use href="#i-facebook"/></svg></span>
                 <span><strong>Facebook HD</strong><small>2048 px · JPG 92%</small></span>
               </button>
+              <button type="button" data-p="visa" class="px-preset">
+                <span class="px-preset-ico"><svg class="px-ico"><use href="#i-id"/></svg></span>
+                <span><strong>Ảnh visa Việt Nam</strong><small>4×6 cm · 600×900 px · JPG ≤ 2 MB</small></span>
+              </button>
               <button type="button" data-p="web" class="px-preset">
                 <span class="px-preset-ico"><svg class="px-ico"><use href="#i-globe"/></svg></span>
                 <span><strong>Web nhẹ</strong><small>1600 px · WebP 80%</small></span>
@@ -226,6 +263,7 @@
               <select class="px-select" id="resizeMode" aria-label="Chế độ resize">
                 <option value="none">Giữ nguyên kích thước</option>
                 <option value="fb">Facebook HD — cạnh dài 2048 px</option>
+                <option value="visa">Ảnh visa Việt Nam — 4×6 cm (600×900 px)</option>
                 <option value="max">Cạnh dài tối đa</option>
                 <option value="percent">Theo phần trăm</option>
                 <option value="exact">Rộng × Cao tùy chỉnh</option>
@@ -245,6 +283,37 @@
               </div>
               <label class="px-switch-row"><input type="checkbox" class="px-switch" id="keepRatio" checked role="switch" /><span>Giữ tỷ lệ (tự tính chiều cao)</span></label>
             </div>
+            <div class="px-tip px-visa-tip" id="visaTip" hidden>
+              <svg class="px-visa-sample" viewBox="0 0 200 300" role="img" aria-labelledby="visaSampleTitle">
+                <title id="visaSampleTitle">Ảnh mẫu visa Việt Nam 4×6: nền trắng, nhìn thẳng, mắt trên vạch 2/3</title>
+                <rect width="200" height="300" fill="#ffffff"/>
+                <path d="M66.7 0V300M133.3 0V300M0 100H200M0 200H200" stroke="#cfd6e0" stroke-width="1" stroke-dasharray="4 4"/>
+                <path d="M34 300c4-58 30-78 66-84 36 6 62 26 66 84z" fill="#3a4a63"/>
+                <path d="M86 196h28l4 26-18 12-18-12z" fill="#e3c3a3"/>
+                <path d="M100 216l-14-10 14 30 14-30z" fill="#ffffff"/>
+                <ellipse cx="100" cy="105" rx="46" ry="62" fill="#ecd0b3"/>
+                <path d="M54 102c0-44 20-62 46-62s46 18 46 62c-6-22-22-34-46-34s-40 12-46 34z" fill="#2b2320"/>
+                <ellipse cx="82" cy="100" rx="6" ry="3.5" fill="#2b2320"/>
+                <ellipse cx="118" cy="100" rx="6" ry="3.5" fill="#2b2320"/>
+                <path d="M100 104v18M90 140q10 6 20 0" stroke="#b58c6a" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+                <path d="M0 100H200" stroke="#d99a2b" stroke-width="2"/>
+                <text x="196" y="95" text-anchor="end" font-size="11" fill="#b45309" font-family="Inter, sans-serif">mắt · 2/3</text>
+                <rect x="0.5" y="0.5" width="199" height="299" fill="none" stroke="#d9cfc3"/>
+              </svg>
+              <div>
+                <strong>Ảnh mẫu 4×6 để so</strong>
+                <ul class="px-visa-list">
+                  <li>Phông nền trắng, đủ sáng, không bóng</li>
+                  <li>Mắt nằm trên vạch 2/3 (tính từ đáy)</li>
+                  <li>Nhìn thẳng, không nghiêng đầu</li>
+                  <li>Không đội mũ, không đeo kính</li>
+                  <li>Trang phục lịch sự, một người trong ảnh</li>
+                  <li>JPG/JPEG, ≤ 2 MB, ảnh mới chụp</li>
+                </ul>
+                <label class="px-switch-row px-ai-row"><input type="checkbox" class="px-switch" id="aiWhiteBg" role="switch" /><span><strong>Đổi nền trắng bằng AI</strong><br>Tách người khỏi phông, thay bằng nền trắng</span></label>
+                <small>Theo hướng dẫn trên evisa.gov.vn · AI chạy ngay trên máy, lần đầu tải ~12 MB</small>
+              </div>
+            </div>
             <p class="px-tip" id="fbTip" hidden>Facebook giữ ảnh nét nhất khi cạnh dài <strong>đúng 2048 px</strong>. Ảnh lớn hơn sẽ bị Facebook thu nhỏ và nén lại. Nhớ chọn “Tải lên HD” nếu ứng dụng hỏi.</p>
           </div>
         </aside>
@@ -259,6 +328,7 @@
             <div><span class="px-sum-num px-good" id="sumPct">—</span><span class="px-sum-lbl">Tiết kiệm</span></div>
           </div>
           <div class="px-sum-actions">
+            <button type="button" class="px-btn px-btn--secondary" id="collageBtn"><svg class="px-ico"><use href="#i-grid"/></svg>Ghép ảnh</button>
             <button type="button" class="px-btn px-btn--ghost" id="clearBtn"><svg class="px-ico"><use href="#i-trash"/></svg>Xóa hết</button>
             <button type="button" class="px-btn px-btn--secondary" id="zipBtn"><svg class="px-ico"><use href="#i-package"/></svg>Tải tất cả (.zip)</button>
           </div>
@@ -267,18 +337,22 @@
       </section>
 
       <section class="px-feats" aria-labelledby="featsTitle">
-        <span class="px-eyebrow">Tính năng</span>
-        <h2 class="px-feats-title" id="featsTitle">Mọi thứ cần để ảnh gọn và đẹp</h2>
-        <div class="px-feats-grid">
-          <div class="px-feat"><span class="px-feat-ico"><svg class="px-ico"><use href="#i-package"/></svg></span><b>SlimMode</b><span>Nén và báo % tiết kiệm cho từng ảnh lẫn cả lô.</span></div>
-          <div class="px-feat"><span class="px-feat-ico"><svg class="px-ico"><use href="#i-repeat"/></svg></span><b>SwapMode</b><span>Đổi qua lại JPG, PNG, WebP và AVIF.</span></div>
-          <div class="px-feat"><span class="px-feat-ico"><svg class="px-ico"><use href="#i-resize"/></svg></span><b>FitMode</b><span>Cạnh dài tối đa, theo %, hoặc Rộng × Cao chính xác.</span></div>
-          <div class="px-feat"><span class="px-feat-ico"><svg class="px-ico"><use href="#i-facebook"/></svg></span><b>FB-HD 2048</b><span>Một chạm để ảnh Facebook nét, không bị nén lại.</span></div>
-          <div class="px-feat"><span class="px-feat-ico"><svg class="px-ico"><use href="#i-crop"/></svg></span><b>CropMode</b><span>Cắt tự do hoặc 1:1, 4:5, 16:9, 9:16… kèm xoay, lật.</span></div>
-          <div class="px-feat"><span class="px-feat-ico"><svg class="px-ico"><use href="#i-gauge"/></svg></span><b>QualityScore</b><span>Đo SSIM và PSNR để biết ảnh có bị vỡ hay không.</span></div>
-          <div class="px-feat"><span class="px-feat-ico"><svg class="px-ico"><use href="#i-shield"/></svg></span><b>ClearMode</b><span>Phát hiện và xóa EXIF, GPS, C2PA, prompt AI; tùy chọn khử watermark ẩn.</span></div>
-          <div class="px-feat"><span class="px-feat-ico"><svg class="px-ico"><use href="#i-image"/></svg></span><b>Ảnh iPhone</b><span>Nhận ảnh HEIC/HEIF, tự xoay đúng chiều, xuất JPG/WebP.</span></div>
-        </div>
+        <h2 class="px-feats-title" id="featsTitle">Tính năng</h2>
+        <ul class="px-feats-grid">
+          <li class="px-feat" title="Nén và báo % tiết kiệm cho từng ảnh lẫn cả lô."><span class="px-feat-ico"><svg class="px-ico"><use href="#i-package"/></svg></span>SlimMode</li>
+          <li class="px-feat" title="Đổi qua lại JPG, PNG, WebP và AVIF."><span class="px-feat-ico"><svg class="px-ico"><use href="#i-repeat"/></svg></span>SwapMode</li>
+          <li class="px-feat" title="Cạnh dài tối đa, theo %, hoặc Rộng × Cao chính xác."><span class="px-feat-ico"><svg class="px-ico"><use href="#i-resize"/></svg></span>FitMode</li>
+          <li class="px-feat" title="Một chạm để ảnh Facebook nét, không bị nén lại."><span class="px-feat-ico"><svg class="px-ico"><use href="#i-facebook"/></svg></span>FB-HD 2048</li>
+          <li class="px-feat" title="Cắt tự do hoặc 1:1, 4:5, 16:9, 9:16… kèm xoay, lật."><span class="px-feat-ico"><svg class="px-ico"><use href="#i-crop"/></svg></span>CropMode</li>
+          <li class="px-feat" title="Đo SSIM và PSNR để biết ảnh có bị vỡ hay không."><span class="px-feat-ico"><svg class="px-ico"><use href="#i-gauge"/></svg></span>QualityScore</li>
+          <li class="px-feat" title="Phát hiện và xóa EXIF, GPS, C2PA, prompt AI; tùy chọn khử watermark ẩn."><span class="px-feat-ico"><svg class="px-ico"><use href="#i-shield"/></svg></span>ClearMode</li>
+          <li class="px-feat" title="Nhận ảnh HEIC/HEIF, tự xoay đúng chiều, xuất JPG/WebP."><span class="px-feat-ico"><svg class="px-ico"><use href="#i-image"/></svg></span>Ảnh iPhone</li>
+          <li class="px-feat" title="Vẽ khung, elip hoặc tô cọ để làm mờ, pixel hóa hay tô đen."><span class="px-feat-ico"><svg class="px-ico"><use href="#i-eye-off"/></svg></span>Che vùng nhạy cảm</li>
+          <li class="px-feat" title="Khổ 4×6, JPG ≤ 2 MB, khung căn mặt và kiểm tra nền trắng."><span class="px-feat-ico"><svg class="px-ico"><use href="#i-id"/></svg></span>Ảnh visa Việt Nam</li>
+          <li class="px-feat" title="12 bố cục sẵn hoặc tự do; chỉnh khoảng cách, bo góc, màu nền."><span class="px-feat-ico"><svg class="px-ico"><use href="#i-grid"/></svg></span>Ghép ảnh</li>
+          <li class="px-feat" title="Tự căn mặt ảnh visa theo vạch 2/3, đổi nền trắng, kiểm tra nhìn thẳng/mắt mở, tìm và che mọi khuôn mặt — chạy ngay trên máy, không gửi ảnh đi"><span class="px-feat-ico"><svg class="px-ico"><use href="#i-sparkles"/></svg></span>AI trên máy</li>
+          <li class="px-feat" title="Tải từng ảnh hoặc đóng gói .zip toàn bộ."><span class="px-feat-ico"><svg class="px-ico"><use href="#i-package"/></svg></span>Tải cả lô</li>
+        </ul>
         <p class="px-privacy"><svg class="px-ico"><use href="#i-shield"/></svg>Ảnh được xử lý hoàn toàn trên thiết bị của bạn và không bao giờ được gửi lên máy chủ.</p>
       </section>
     </div>

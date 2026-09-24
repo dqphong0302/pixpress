@@ -8,6 +8,8 @@ import { measureQuality } from './quality.js';
 import { exactPixels } from './crop.js';
 import { isHeic, decodeHeic } from './heic.js';
 import { stripLossless, addGaussianNoise } from './metadata.js';
+import { applyRedactions } from './redact.js';
+import { whitenBackground } from './ai.js';
 
 export const LIMITS = {
   maxFiles: 30,
@@ -16,6 +18,12 @@ export const LIMITS = {
 };
 
 export const FB_MAX_SIDE = 2048;
+
+/**
+ * Ảnh visa điện tử Việt Nam (evisa.gov.vn): 4×6 cm, JPG/JPEG, ≤ 2 MB, nhìn thẳng, không mũ, không kính, nền trắng.
+ * Cổng không quy định số pixel; 600×900 (≈ 381 dpi) đủ nét cho bước nhận diện khuôn mặt và rất nhẹ.
+ */
+export const VISA_VN = { w: 600, h: 900, maxBytes: 2 * 1024 * 1024 };
 
 /** Độ lệch chuẩn nhiễu Gauss (thang 0–255) cho chế độ khử watermark AI. */
 export const NOISE_SIGMA = { light: 1.5, medium: 3, strong: 5 };
@@ -87,12 +95,14 @@ export function orient(bitmap, rotate = 0, flipH = false) {
   if (flipH) ctx.scale(-1, 1);
   ctx.rotate((rot * Math.PI) / 180);
   ctx.drawImage(bitmap, -bitmap.width / 2, -bitmap.height / 2);
+  ctx.setTransform(1, 0, 0, 1, 0, 0); // người vẽ tiếp (vd. vùng che) dùng tọa độ gốc
   return canvas;
 }
 
 /** Tính kích thước đích theo chế độ resize (không bao giờ phóng to trừ chế độ "exact"). */
 export function targetSize(w, h, opt) {
   const mode = opt.resizeMode;
+  if (mode === 'visa') return { w: VISA_VN.w, h: VISA_VN.h };
   let limit = 0;
   if (mode === 'fb') limit = FB_MAX_SIDE;
   else if (mode === 'max') limit = Math.max(16, opt.maxSide | 0);
@@ -145,13 +155,55 @@ function cropAndResize(src, sx, sy, sw, sh, tw, th) {
 /** Dựng canvas tham chiếu (đã xoay, cắt, resize) — chưa nén. */
 export function render(bitmap, edit, opt) {
   const oriented = orient(bitmap, edit.rotate, edit.flipH);
+  // Nền trắng bằng AI (ảnh visa): mặt nạ người đã tính sẵn cho đúng hướng xoay/lật hiện tại.
+  if (opt.whiteBg && edit.bgMask) whitenBackground(oriented, edit.bgMask);
+  // Che vùng nhạy cảm trên ảnh đủ độ phân giải, trước khi cắt/thu nhỏ.
+  applyRedactions(oriented, edit.redact);
   const crop = edit.crop || { x: 0, y: 0, w: 1, h: 1 };
-  const { w: sw, h: sh } = exactPixels(crop, oriented.width, oriented.height);
-  const sx = Math.min(oriented.width - sw, Math.max(0, Math.round(crop.x * oriented.width)));
-  const sy = Math.min(oriented.height - sh, Math.max(0, Math.round(crop.y * oriented.height)));
+  let { w: sw, h: sh } = exactPixels(crop, oriented.width, oriented.height);
+  let sx = Math.min(oriented.width - sw, Math.max(0, Math.round(crop.x * oriented.width)));
+  let sy = Math.min(oriented.height - sh, Math.max(0, Math.round(crop.y * oriented.height)));
+  if (opt.resizeMode === 'visa') {
+    // Vùng chọn chưa đúng 2:3 → cắt giữa cho đúng tỷ lệ 4×6, không kéo méo khuôn mặt.
+    const ratio = VISA_VN.w / VISA_VN.h;
+    if (Math.abs(sw / sh - ratio) > 0.005) {
+      const nw = Math.min(sw, Math.round(sh * ratio));
+      const nh = Math.round(nw / ratio);
+      sx += Math.round((sw - nw) / 2);
+      sy += Math.round((sh - nh) / 2);
+      sw = nw;
+      sh = nh;
+    }
+  }
   const t = targetSize(sw, sh, opt);
   const canvas = cropAndResize(oriented, sx, sy, sw, sh, t.w, t.h);
   return { canvas, cropW: sw, cropH: sh };
+}
+
+/**
+ * Ước lượng nền có trắng không, xét riêng hai mép bên (nửa trên ảnh, nơi thường là phông)
+ * và dải trên cùng (chạm tóc nếu ảnh chụp quá sát). Đạt khi sáng (luma ≥ 225) và gần như không màu (chroma ≤ 18).
+ */
+export function checkWhiteBackground(canvas) {
+  const W = canvas.width, H = canvas.height;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  const side = Math.max(1, Math.round(W * 0.07));
+  const measure = regions => {
+    let luma = 0, chroma = 0, n = 0;
+    for (const [x, y, w, h] of regions) {
+      const d = ctx.getImageData(x, y, w, h).data;
+      for (let i = 0; i < d.length; i += 16) {
+        const r = d[i], g = d[i + 1], b = d[i + 2];
+        luma += 0.299 * r + 0.587 * g + 0.114 * b;
+        chroma += Math.max(r, g, b) - Math.min(r, g, b);
+        n++;
+      }
+    }
+    return luma / n >= 225 && chroma / n <= 18;
+  };
+  const sides = measure([[0, 0, side, Math.round(H * 0.5)], [W - side, 0, side, Math.round(H * 0.5)]]);
+  const top = measure([[0, 0, W, Math.max(1, Math.round(H * 0.04))]]);
+  return { ok: sides && top, sides, top };
 }
 
 function encode(canvas, mime, quality) {
@@ -194,7 +246,13 @@ export async function processImage(file, bitmap, edit, opt) {
     target.getContext('2d').drawImage(source, 0, 0);
     addGaussianNoise(target, NOISE_SIGMA[opt.noise] ?? NOISE_SIGMA.light);
   }
-  const blob = await encode(target, fmt.mime, opt.quality);
+  let blob = await encode(target, fmt.mime, opt.quality);
+  let visa = null;
+  if (opt.resizeMode === 'visa') {
+    // Bảo đảm ≤ 2 MB (thực tế 600×900 chỉ vài trăm KB) và báo các điểm cổng evisa hay từ chối.
+    for (let q = opt.quality; blob.size > VISA_VN.maxBytes && q > 0.5 && fmt.lossy; q -= 0.08) blob = await encode(target, fmt.mime, q);
+    visa = { background: checkWhiteBackground(source), jpeg: fmt.mime === 'image/jpeg', sizeOk: blob.size <= VISA_VN.maxBytes };
+  }
 
   const quality = fmt.lossy || target !== source ? await measureQuality(source, blob) : { ssim: 1, psnr: Infinity };
 
@@ -212,6 +270,7 @@ export async function processImage(file, bitmap, edit, opt) {
     origSize,
     newSize,
     deltaPct: origSize > 0 ? ((origSize - newSize) / origSize) * 100 : 0,
+    visa,
     ...quality
   };
 }

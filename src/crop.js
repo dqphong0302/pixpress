@@ -28,7 +28,8 @@ export function createCropper(host, onChange) {
   box.tabIndex = 0;
   box.setAttribute('role', 'group');
   box.setAttribute('aria-label', 'Vùng cắt — dùng phím mũi tên để di chuyển, Shift để di chuyển nhanh');
-  box.innerHTML = '<span class="px-crop-grid"></span><span class="px-crop-size"></span>';
+  // px-crop-face: khung gợi ý vị trí đầu/mắt cho ảnh thẻ (bật bằng setGuide).
+  box.innerHTML = '<span class="px-crop-grid"></span><span class="px-crop-face" hidden><span class="px-crop-face-oval"></span><span class="px-crop-face-eyes"><em>Mắt</em></span><span class="px-crop-face-tip">Đặt mắt trên vạch 2/3, mặt trong khung</span></span><span class="px-crop-size"></span>';
   for (const h of HANDLES) {
     const el = document.createElement('span');
     el.className = `px-crop-handle px-h-${h}`;
@@ -193,6 +194,10 @@ export function createCropper(host, onChange) {
       emit();
     },
     get,
+    setGuide(on) {
+      // Giữ lưới 3×3: vạch trên của lưới chính là vạch 2/3 (tính từ đáy) dành cho mắt.
+      box.querySelector('.px-crop-face').hidden = !on;
+    },
     get isFull() { return r.x < 1 && r.y < 1 && r.w > W - 1 && r.h > H - 1; },
     get pixelSize() { return pixelSize(); }
   };
