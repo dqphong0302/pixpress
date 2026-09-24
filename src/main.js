@@ -1,0 +1,746 @@
+/**
+ * PixPress — UI controller
+ * Designed by Quoc-Phong Dang, M.Sc. (phongdang.io.vn)
+ */
+
+import JSZip from 'jszip';
+import { LIMITS, FB_MAX_SIDE, decode, orient, render, processImage, processLossless, detectEncoders } from './engine.js';
+import { inspectMetadata } from './metadata.js';
+import { qualityGrade } from './quality.js';
+import { createCropper } from './crop.js';
+
+const $ = id => document.getElementById(id);
+const toast = (msg, type = 'success') => window.PDUI?.Toast.show(msg, type, 3000);
+
+/* ---------------- Settings ---------------- */
+
+const PRESETS = {
+  none: { format: 'keep', quality: 92, resizeMode: 'none' },
+  fb: { format: 'jpeg', quality: 92, resizeMode: 'fb' },
+  web: { format: 'webp', quality: 80, resizeMode: 'max', maxSide: 1600 },
+  tiny: { format: 'webp', quality: 65, resizeMode: 'max', maxSide: 1280 }
+};
+
+// Mặc định: không dùng mẫu — giữ định dạng và kích thước gốc.
+const DEFAULTS = { privacy: 'clean', noise: 'light', format: 'keep', quality: 92, resizeMode: 'none', maxSide: 1920, percent: 50, exactW: 1200, exactH: 630, keepRatio: true };
+const STORE_KEY = 'pixpress_settings';
+
+let settings = { ...DEFAULTS };
+try { Object.assign(settings, JSON.parse(localStorage.getItem(STORE_KEY) || '{}')); } catch {}
+
+function saveSettings() {
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(settings)); } catch {}
+}
+
+function engineOptions() {
+  return { ...settings, quality: settings.quality / 100 };
+}
+
+let encoders = { jpeg: true, png: true, webp: true, avif: false };
+
+/* ---------------- State ---------------- */
+
+/** @type {Array<{id:number,file:File,name:string,bitmap:ImageBitmap|null,preview:ImageBitmap|null,thumb:string,edit:{rotate:number,flipH:boolean,crop:null|object},result:any,url:string|null,status:string,error?:string,runs:number}>} */
+let items = [];
+let active = null;
+let nextId = 1;
+
+const fmtBytes = b => {
+  if (b < 1024) return `${b} B`;
+  if (b < 1024 * 1024) return `${(b / 1024).toFixed(b < 10240 ? 1 : 0)} KB`;
+  return `${(b / 1024 / 1024).toFixed(2)} MB`;
+};
+const baseName = n => n.replace(/\.[^.]+$/, '') || 'image';
+const pctText = p => `${p >= 0 ? '−' : '+'}${Math.abs(p).toFixed(Math.abs(p) < 10 ? 1 : 0)}%`;
+
+/* ---------------- Processing queue ---------------- */
+
+const pending = new Set();
+let pumping = false;
+
+function enqueue(list) {
+  list.forEach(it => { pending.add(it); it.status = 'pending'; renderQueueItem(it); });
+  if (list.includes(active)) $('busy').hidden = false;
+  pump();
+}
+
+async function pump() {
+  if (pumping) return;
+  pumping = true;
+  while (pending.size) {
+    const it = pending.has(active) ? active : pending.values().next().value;
+    pending.delete(it);
+    if (!items.includes(it)) continue;
+    await runItem(it);
+  }
+  pumping = false;
+  updateSummary();
+}
+
+async function runItem(it) {
+  it.status = 'busy';
+  const run = ++it.runs;
+  renderQueueItem(it);
+  if (it === active) $('busy').hidden = false;
+  try {
+    if (!it.bitmap) await loadBitmap(it);
+    let res = null;
+    it.fallback = '';
+    if (settings.privacy === 'lossless') {
+      const edited = it.edit.rotate || it.edit.flipH || it.edit.crop;
+      if (edited) it.fallback = 'Ảnh đã được cắt/xoay nên phải vẽ lại thay vì chỉ xóa metadata.';
+      else if (it.meta?.orientation !== 1) it.fallback = 'Ảnh dùng thẻ xoay EXIF (thường gặp ở ảnh điện thoại) nên được vẽ lại để giữ đúng hướng.';
+      else {
+        res = await processLossless(it.file, it.bitmap);
+        if (!res) it.fallback = 'Định dạng này (vd. HEIC của iPhone) không xóa trực tiếp được nên được vẽ lại thành JPG.';
+      }
+    }
+    // Vẽ lại qua canvas luôn làm mất toàn bộ metadata; khi dự phòng cho "chỉ xóa" thì giữ nguyên kích thước, chất lượng cao.
+    res ??= await processImage(it.file, it.bitmap, it.edit, settings.privacy === 'lossless'
+      ? { ...engineOptions(), resizeMode: 'none', quality: 0.95, privacy: 'clean' }
+      : engineOptions());
+    if (run !== it.runs || !items.includes(it)) return;
+    if (it.url) URL.revokeObjectURL(it.url);
+    it.result = res;
+    it.url = URL.createObjectURL(res.blob);
+    it.status = 'done';
+  } catch (err) {
+    it.status = 'error';
+    it.error = err.message || String(err);
+  }
+  renderQueueItem(it);
+  if (it === active) { $('busy').hidden = !pending.has(it); renderActive(); }
+  updateSummary();
+}
+
+async function loadBitmap(it) {
+  const metaTask = inspectMetadata(it.file).catch(() => ({ findings: [], orientation: 1 }));
+  it.bitmap = await decode(it.file);
+  it.meta = await metaTask;
+  if (it.bitmap.width * it.bitmap.height > LIMITS.maxPixels) {
+    it.bitmap.close();
+    it.bitmap = null;
+    throw new Error('Ảnh quá lớn (> 80 megapixel).');
+  }
+  const long = Math.max(it.bitmap.width, it.bitmap.height);
+  const k = Math.min(1, 1600 / long);
+  it.preview = await createImageBitmap(it.bitmap, {
+    resizeWidth: Math.max(1, Math.round(it.bitmap.width * k)),
+    resizeHeight: Math.max(1, Math.round(it.bitmap.height * k)),
+    resizeQuality: 'high'
+  });
+  const tk = Math.min(1, 160 / long);
+  const tc = document.createElement('canvas');
+  tc.width = Math.max(1, Math.round(it.bitmap.width * tk));
+  tc.height = Math.max(1, Math.round(it.bitmap.height * tk));
+  tc.getContext('2d').drawImage(it.preview, 0, 0, tc.width, tc.height);
+  it.thumb = tc.toDataURL('image/jpeg', 0.7);
+}
+
+/* ---------------- Adding files ---------------- */
+
+function addFiles(fileList) {
+  const files = [...fileList].filter(f => f.type.startsWith('image/') || /\.(heic|heif|avif)$/i.test(f.name));
+  if (!files.length) return toast('Không tìm thấy file ảnh hợp lệ.', 'warning');
+  const room = LIMITS.maxFiles - items.length;
+  if (room <= 0) return toast(`Tối đa ${LIMITS.maxFiles} ảnh mỗi lượt.`, 'warning');
+  const accepted = [];
+  for (const file of files.slice(0, room)) {
+    if (file.size > LIMITS.maxFileSize) { toast(`${file.name} vượt quá 50 MB.`, 'warning'); continue; }
+    const it = { id: nextId++, file, name: file.name || `pasted-${Date.now()}.png`, bitmap: null, preview: null, thumb: '', edit: { rotate: 0, flipH: false, crop: null }, result: null, url: null, status: 'pending', runs: 0 };
+    items.push(it);
+    accepted.push(it);
+  }
+  if (files.length > room) toast(`Chỉ nhận thêm ${room} ảnh (giới hạn ${LIMITS.maxFiles}).`, 'warning');
+  if (!accepted.length) return;
+  $('work').hidden = false;
+  $('batch').hidden = false;
+  document.body.classList.add('px-has-items');
+  accepted.forEach(it => $('queue').appendChild(buildQueueItem(it)));
+  if (!active) select(accepted[0]);
+  enqueue(accepted);
+}
+
+/* ---------------- Queue UI ---------------- */
+
+function buildQueueItem(it) {
+  const li = document.createElement('li');
+  li.className = 'px-q';
+  li.dataset.id = it.id;
+  li.innerHTML = `
+    <button type="button" class="px-q-main">
+      <span class="px-q-thumb"></span>
+      <span class="px-q-info">
+        <span class="px-q-name"></span>
+        <span class="px-q-meta"></span>
+      </span>
+      <span class="px-q-badge"></span>
+    </button>
+    <button type="button" class="px-q-dl" title="Tải ảnh này" aria-label="Tải ảnh này"><svg class="px-ico"><use href="#i-download"/></svg></button>
+    <button type="button" class="px-q-del" title="Xóa khỏi danh sách" aria-label="Xóa ảnh"><svg class="px-ico"><use href="#i-x"/></svg></button>`;
+  li.querySelector('.px-q-name').textContent = it.name;
+  li.querySelector('.px-q-main').addEventListener('click', () => select(it));
+  li.querySelector('.px-q-dl').addEventListener('click', () => downloadOne(it));
+  li.querySelector('.px-q-del').addEventListener('click', () => removeItem(it));
+  return li;
+}
+
+function renderQueueItem(it) {
+  const li = $('queue').querySelector(`[data-id="${it.id}"]`);
+  if (!li) return;
+  li.classList.toggle('active', it === active);
+  li.classList.toggle('busy', it.status === 'busy' || it.status === 'pending');
+  const thumb = li.querySelector('.px-q-thumb');
+  if (it.thumb && !thumb.firstChild) {
+    const img = new Image();
+    img.src = it.thumb;
+    img.alt = '';
+    thumb.appendChild(img);
+  }
+  const meta = li.querySelector('.px-q-meta');
+  const badge = li.querySelector('.px-q-badge');
+  badge.className = 'px-q-badge';
+  li.querySelector('.px-q-dl').disabled = it.status !== 'done';
+  if (it.status === 'error') {
+    meta.textContent = it.error;
+    badge.textContent = 'Lỗi';
+    badge.classList.add('bad');
+  } else if (it.status === 'done') {
+    const r = it.result;
+    const g = qualityGrade(r.ssim);
+    const ai = it.meta?.findings.some(f => f.group === 'ai') ? ' · đã xóa dấu vết AI' : '';
+    meta.textContent = `${fmtBytes(r.origSize)} → ${fmtBytes(r.newSize)} · ${r.w}×${r.h} · ${r.formatLabel} · Q ${g.score ?? '—'}${ai}`;
+    badge.textContent = pctText(r.deltaPct);
+    badge.classList.add(r.deltaPct >= 0 ? 'good' : 'warn');
+  } else {
+    meta.textContent = 'Đang xử lý…';
+    badge.textContent = '';
+  }
+}
+
+function removeItem(it) {
+  items = items.filter(x => x !== it);
+  pending.delete(it);
+  if (it.url) URL.revokeObjectURL(it.url);
+  it.bitmap?.close();
+  it.preview?.close();
+  $('queue').querySelector(`[data-id="${it.id}"]`)?.remove();
+  if (active === it) {
+    if (cropping) exitCrop(false);
+    active = null;
+    if (items.length) select(items[0]);
+  }
+  if (!items.length) clearAll();
+  updateSummary();
+}
+
+function clearAll() {
+  if (cropping) exitCrop(false);
+  items.forEach(it => { if (it.url) URL.revokeObjectURL(it.url); it.bitmap?.close(); it.preview?.close(); });
+  items = [];
+  pending.clear();
+  active = null;
+  $('queue').innerHTML = '';
+  $('work').hidden = true;
+  $('batch').hidden = true;
+  document.body.classList.remove('px-has-items');
+  $('previewImg').removeAttribute('src');
+}
+
+function updateSummary() {
+  const done = items.filter(i => i.status === 'done');
+  const before = done.reduce((s, i) => s + i.result.origSize, 0);
+  const after = done.reduce((s, i) => s + i.result.newSize, 0);
+  $('sumCount').textContent = `${done.length}/${items.length}`;
+  $('sumBefore').textContent = done.length ? fmtBytes(before) : '—';
+  $('sumAfter').textContent = done.length ? fmtBytes(after) : '—';
+  const pct = before ? ((before - after) / before) * 100 : 0;
+  const el = $('sumPct');
+  el.textContent = done.length ? pctText(pct) : '—';
+  el.classList.toggle('px-good', pct >= 0);
+  el.classList.toggle('px-warn', pct < 0);
+  $('zipBtn').disabled = !done.length || pending.size > 0;
+}
+
+/* ---------------- Active image ---------------- */
+
+function select(it) {
+  if (cropping) exitCrop(false);
+  const prev = active;
+  active = it;
+  if (prev) renderQueueItem(prev);
+  renderQueueItem(it);
+  $('busy').hidden = it.status === 'done' || it.status === 'error';
+  renderActive();
+}
+
+function renderActive() {
+  const it = active;
+  if (!it) return;
+  const img = $('previewImg');
+  if (it.url && img.src !== it.url) img.src = it.url;
+  const r = it.result;
+  const set = (id, v) => { $(id).textContent = v; };
+  const warn = $('warnNote');
+  warn.hidden = true;
+
+  if (it.status === 'error') {
+    ['stDelta', 'stQuality', 'stDim', 'stFmt'].forEach(id => set(id, '—'));
+    $('stSaveBar').style.width = '0';
+    set('stSize', it.error);
+    img.removeAttribute('src');
+    $('busy').hidden = true;
+    return;
+  }
+  if (!r) return;
+
+  const delta = $('stDelta');
+  delta.textContent = pctText(r.deltaPct);
+  delta.className = `px-tile-num ${r.deltaPct >= 0 ? 'px-good' : 'px-warn'}`;
+  const bar = $('stSaveBar');
+  bar.style.width = `${Math.max(0, Math.min(100, r.deltaPct))}%`;
+  set('stSize', `${fmtBytes(r.origSize)} → ${fmtBytes(r.newSize)}`);
+
+  const g = qualityGrade(r.ssim);
+  const q = $('stQuality');
+  q.textContent = g.score == null ? '—' : `${g.score}/100`;
+  q.className = `px-tile-num px-tile-num--md px-tone-${g.tone}`;
+  set('stQualityLbl', g.label);
+  const meter = $('stMeter');
+  meter.style.width = `${g.score ?? 0}%`;
+  meter.className = `px-tone-bg-${g.tone}`;
+
+  set('stDim', `${r.w} × ${r.h}`);
+  const cropped = it.edit.crop ? ' · đã cắt' : '';
+  set('stDimSub', `Gốc ${r.origW} × ${r.origH}${cropped}`);
+  set('stFmt', r.formatLabel);
+  set('stPsnr', Number.isFinite(r.psnr) ? `PSNR ${r.psnr.toFixed(1)} dB` : 'Không mất dữ liệu (lossless)');
+
+  renderMeta(it);
+
+  const notes = [];
+  if (it.fallback) notes.push(it.fallback);
+  if (r.deltaPct < 0 && !r.lossless) notes.push('Ảnh xuất lớn hơn ảnh gốc — ảnh gốc đã được nén sẵn, hoặc bạn đang xuất PNG / chất lượng cao. Thử giảm chất lượng hoặc chọn WebP.');
+  if (settings.resizeMode === 'fb' && Math.max(r.w, r.h) < FB_MAX_SIDE) notes.push(`Vùng ảnh nhỏ hơn ${FB_MAX_SIDE} px nên được giữ nguyên kích thước (PixPress không phóng to ảnh).`);
+  if (notes.length) { warn.textContent = notes.join(' '); warn.hidden = false; }
+}
+
+const GROUP_LABEL = { ai: 'Dấu vết AI', location: 'Vị trí', device: 'Thiết bị', other: 'Khác' };
+const GROUP_ORDER = ['ai', 'location', 'device', 'other'];
+
+function renderMeta(it) {
+  const box = $('metaBox');
+  const list = $('metaList');
+  const findings = [...(it.meta?.findings || [])].sort((a, b) => GROUP_ORDER.indexOf(a.group) - GROUP_ORDER.indexOf(b.group));
+  box.hidden = false;
+  list.textContent = '';
+  const status = $('metaStatus');
+  if (!findings.length) {
+    status.textContent = 'Không có metadata nhạy cảm';
+    status.className = 'px-badge';
+    return;
+  }
+  status.textContent = `Đã xóa ${findings.length} mục trong ảnh xuất`;
+  status.className = 'px-badge px-badge--good';
+  for (const f of findings) {
+    const li = document.createElement('li');
+    li.className = `px-meta-item px-meta-item--${f.group}`;
+    const tag = document.createElement('span');
+    tag.className = 'px-meta-tag';
+    tag.textContent = GROUP_LABEL[f.group];
+    const label = document.createElement('span');
+    label.className = 'px-meta-label';
+    label.textContent = f.label;
+    li.append(tag, label);
+    if (f.detail) {
+      const d = document.createElement('span');
+      d.className = 'px-meta-detail';
+      d.textContent = f.detail;
+      li.append(d);
+    }
+    list.append(li);
+  }
+}
+
+/* ---------------- Rotate / flip ---------------- */
+
+function rotateCrop(c, cw) {
+  if (!c) return null;
+  const r = cw ? { x: 1 - (c.y + c.h), y: c.x, w: c.h, h: c.w } : { x: c.y, y: 1 - (c.x + c.w), w: c.h, h: c.w };
+  if (c.aspect) r.aspect = 1 / c.aspect;
+  return r;
+}
+
+function rotate(cw) {
+  const it = active;
+  if (!it) return;
+  // orient() xoay trước rồi lật, nên khi đang lật phải xoay ngược chiều để ảnh hiển thị quay đúng hướng.
+  const d = cw ? 90 : -90;
+  it.edit.rotate = (it.edit.rotate + (it.edit.flipH ? -d : d) + 360) % 360;
+  it.edit.crop = rotateCrop(it.edit.crop, cw);
+  afterEdit(it);
+}
+
+function flip() {
+  const it = active;
+  if (!it) return;
+  it.edit.flipH = !it.edit.flipH;
+  const c = it.edit.crop;
+  if (c) it.edit.crop = { ...c, x: 1 - c.x - c.w };
+  afterEdit(it);
+}
+
+function afterEdit(it) {
+  if (cropping) {
+    const pendingCrop = cropper.isFull ? null : cropper.get();
+    loadCropper(it, pendingCrop);
+  } else {
+    enqueue([it]);
+  }
+}
+
+/* ---------------- Crop ---------------- */
+
+let cropping = false;
+let cropper = null;
+let cropBackup = null;
+
+function realOriented(it) {
+  const swap = it.edit.rotate % 180 !== 0;
+  return swap ? { w: it.bitmap.height, h: it.bitmap.width } : { w: it.bitmap.width, h: it.bitmap.height };
+}
+
+function loadCropper(it, crop) {
+  const prev = orient(it.preview, it.edit.rotate, it.edit.flipH);
+  const real = realOriented(it);
+  let aspect = aspectValue($('aspectChips').querySelector('.on')?.dataset.a || 'free', real);
+  if (crop?.aspect) {
+    // Giữ khóa tỷ lệ của lần cắt trước và đánh dấu đúng nút tỷ lệ.
+    aspect = crop.aspect;
+    const match = [...$('aspectChips').querySelectorAll('button')].find(b => Math.abs(aspectValue(b.dataset.a, real) - aspect) < 0.002);
+    $('aspectChips').querySelectorAll('button').forEach(b => b.classList.toggle('on', b === match));
+  }
+  cropper.load(prev, crop, aspect, real.w, real.h);
+}
+
+function aspectValue(a, real) {
+  if (a === 'free') return null;
+  if (a === 'orig') return real.w / real.h;
+  return Number(a);
+}
+
+async function enterCrop() {
+  const it = active;
+  if (!it || cropping) return;
+  if (!it.bitmap) {
+    try { await loadBitmap(it); } catch { return; }
+  }
+  cropping = true;
+  cropBackup = { ...it.edit, crop: it.edit.crop && { ...it.edit.crop } };
+  cropper ??= createCropper($('cropHost'));
+  $('aspectChips').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.a === 'free'));
+  $('cropHost').hidden = false;
+  $('previewImg').hidden = true;
+  $('cropBar').hidden = false;
+  $('cropBtn').classList.add('on');
+  $('stage').classList.add('px-stage--crop');
+  loadCropper(it, it.edit.crop);
+}
+
+function exitCrop(apply) {
+  if (!cropping) return;
+  const it = active;
+  cropping = false;
+  $('cropHost').hidden = true;
+  $('previewImg').hidden = false;
+  $('cropBar').hidden = true;
+  $('cropBtn').classList.remove('on');
+  $('stage').classList.remove('px-stage--crop');
+  if (!it) return;
+  if (apply) {
+    it.edit.crop = cropper.isFull ? null : cropper.get();
+    enqueue([it]);
+  } else if (cropBackup) {
+    const changed = cropBackup.rotate !== it.edit.rotate || cropBackup.flipH !== it.edit.flipH;
+    it.edit = cropBackup;
+    if (changed) enqueue([it]);
+  }
+  cropBackup = null;
+}
+
+/* ---------------- Settings UI ---------------- */
+
+const PRIVACY_HINT = {
+  clean: 'Nén/đổi ảnh như bình thường; mọi EXIF, GPS, thông tin máy, C2PA và prompt AI đều bị loại khỏi ảnh xuất.',
+  paranoid: 'Như "Xóa sạch", thêm nhiễu để làm hỏng watermark AI ẩn như SynthID. Nhiễu càng mạnh càng khó phát hiện watermark nhưng ảnh càng sần và file càng nặng; không đảm bảo xóa hoàn toàn.',
+  lossless: 'Chỉ gỡ khối metadata, không nén lại nên chất lượng giữ nguyên 100%. Các tùy chọn định dạng, chất lượng, kích thước tạm không áp dụng.'
+};
+
+function syncSettingsUI() {
+  $('privacySeg').querySelectorAll('button').forEach(b => {
+    b.classList.toggle('on', b.dataset.v === settings.privacy);
+    b.setAttribute('aria-pressed', String(b.dataset.v === settings.privacy));
+  });
+  $('privacyHint').textContent = PRIVACY_HINT[settings.privacy] || PRIVACY_HINT.clean;
+  $('noiseRow').hidden = settings.privacy !== 'paranoid';
+  $('noiseSeg').querySelectorAll('button').forEach(b => {
+    b.classList.toggle('on', b.dataset.v === settings.noise);
+    b.setAttribute('aria-pressed', String(b.dataset.v === settings.noise));
+  });
+  const lossless = settings.privacy === 'lossless';
+  ['groupPresets', 'groupFormat', 'groupSize'].forEach(id => $(id).classList.toggle('px-dim', lossless));
+  $('fmtSeg').querySelectorAll('button').forEach(b => {
+    b.classList.toggle('on', b.dataset.v === settings.format);
+    b.setAttribute('aria-pressed', String(b.dataset.v === settings.format));
+  });
+  $('quality').value = settings.quality;
+  syncRangeFill();
+  $('qualityOut').textContent = `${settings.quality}%`;
+  $('qualityGroup').classList.toggle('px-dim', lossless || settings.format === 'png');
+  $('resizeMode').value = settings.resizeMode;
+  document.querySelectorAll('.px-sub').forEach(el => { el.hidden = el.dataset.for !== settings.resizeMode; });
+  $('fbTip').hidden = settings.resizeMode !== 'fb';
+  $('maxSide').value = settings.maxSide;
+  $('percent').value = settings.percent;
+  $('exactW').value = settings.exactW;
+  $('exactH').value = settings.exactH;
+  $('exactH').disabled = settings.keepRatio;
+  $('keepRatio').checked = settings.keepRatio;
+
+  $('presets').querySelectorAll('.px-preset').forEach(b => {
+    const p = PRESETS[b.dataset.p];
+    const on = Object.entries(p).every(([k, v]) => settings[k] === v);
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-pressed', String(on));
+  });
+}
+
+function syncRangeFill() {
+  const el = $('quality');
+  const pct = ((el.value - el.min) / (el.max - el.min)) * 100;
+  el.style.setProperty('--fill', `${pct}%`);
+}
+
+let debounce = null;
+function changeSettings(patch, delay = 250) {
+  Object.assign(settings, patch);
+  if (settings.format === 'avif' && !encoders.avif) settings.format = 'webp';
+  saveSettings();
+  syncSettingsUI();
+  clearTimeout(debounce);
+  debounce = setTimeout(() => items.length && enqueue([...items]), delay);
+}
+
+function bindSettings() {
+  $('privacySeg').addEventListener('click', e => {
+    const b = e.target.closest('button');
+    if (b) changeSettings({ privacy: b.dataset.v }, 0);
+  });
+  $('noiseSeg').addEventListener('click', e => {
+    const b = e.target.closest('button');
+    if (b) changeSettings({ noise: b.dataset.v }, 0);
+  });
+  $('presets').addEventListener('click', e => {
+    const b = e.target.closest('.px-preset');
+    if (b) changeSettings({ ...PRESETS[b.dataset.p] }, 0);
+  });
+  $('fmtSeg').addEventListener('click', e => {
+    const b = e.target.closest('button');
+    if (b && !b.disabled) changeSettings({ format: b.dataset.v }, 0);
+  });
+  $('quality').addEventListener('input', e => {
+    $('qualityOut').textContent = `${e.target.value}%`;
+    syncRangeFill();
+    changeSettings({ quality: Number(e.target.value) }, 350);
+  });
+  $('resizeMode').addEventListener('change', e => changeSettings({ resizeMode: e.target.value }, 0));
+  const num = (id, key, min, max) => $(id).addEventListener('change', e => {
+    const v = Math.min(max, Math.max(min, Math.round(Number(e.target.value) || min)));
+    changeSettings({ [key]: v });
+  });
+  num('maxSide', 'maxSide', 16, 16000);
+  num('percent', 'percent', 1, 100);
+  num('exactW', 'exactW', 1, 16000);
+  num('exactH', 'exactH', 1, 16000);
+  $('keepRatio').addEventListener('change', e => changeSettings({ keepRatio: e.target.checked }));
+}
+
+/* ---------------- Downloads ---------------- */
+
+function outName(it) {
+  return `${baseName(it.name)}-pixpress.${it.result.ext}`;
+}
+
+function downloadBlob(blob, name) {
+  const a = document.createElement('a');
+  const url = URL.createObjectURL(blob);
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+}
+
+function downloadOne(it) {
+  if (!it || it.status !== 'done') return toast('Ảnh chưa xử lý xong.', 'info');
+  downloadBlob(it.result.blob, outName(it));
+}
+
+async function downloadZip() {
+  const done = items.filter(i => i.status === 'done');
+  if (!done.length) return;
+  const btn = $('zipBtn');
+  btn.disabled = true;
+  try {
+    const zip = new JSZip();
+    const used = new Set();
+    for (const it of done) {
+      let name = outName(it);
+      for (let n = 2; used.has(name); n++) name = `${baseName(it.name)}-pixpress-${n}.${it.result.ext}`;
+      used.add(name);
+      zip.file(name, it.result.blob);
+    }
+    const blob = await zip.generateAsync({ type: 'blob', compression: 'STORE' });
+    downloadBlob(blob, 'pixpress-images.zip');
+    toast(`Đã đóng gói ${done.length} ảnh.`);
+  } catch {
+    toast('Không tạo được file .zip.', 'error');
+  } finally {
+    updateSummary();
+  }
+}
+
+/* ---------------- Compare modal ---------------- */
+
+let cmpBeforeUrl = null;
+
+async function openCompare() {
+  const it = active;
+  if (!it || it.status !== 'done') return toast('Ảnh chưa xử lý xong.', 'info');
+  const { canvas } = render(it.bitmap, it.edit, engineOptions());
+  const blob = await new Promise(res => canvas.toBlob(res, 'image/png'));
+  if (cmpBeforeUrl) URL.revokeObjectURL(cmpBeforeUrl);
+  cmpBeforeUrl = URL.createObjectURL(blob);
+  $('cmpBefore').src = cmpBeforeUrl;
+  $('cmpAfter').src = it.url;
+  const r = it.result;
+  $('cmpSub').textContent = `${r.w}×${r.h} · ${fmtBytes(r.origSize)} → ${fmtBytes(r.newSize)} (${pctText(r.deltaPct)}) · chất lượng ${qualityGrade(r.ssim).score ?? '—'}/100`;
+  $('cmpBox').style.aspectRatio = `${r.w} / ${r.h}`;
+  setSplit(50);
+  $('cmpModal').hidden = false;
+  document.body.style.overflow = 'hidden';
+  $('cmpHandle').focus();
+}
+
+function closeCompare() {
+  $('cmpModal').hidden = true;
+  document.body.style.overflow = '';
+  $('compareBtn').focus();
+}
+
+let split = 50;
+function setSplit(p) {
+  split = Math.min(100, Math.max(0, p));
+  $('cmpAfterWrap').style.clipPath = `inset(0 0 0 ${split}%)`;
+  $('cmpHandle').style.left = `${split}%`;
+  $('cmpHandle').setAttribute('aria-valuenow', String(Math.round(split)));
+}
+
+function bindCompare() {
+  const box = $('cmpBox');
+  const handle = $('cmpHandle');
+  handle.tabIndex = 0;
+  handle.setAttribute('role', 'slider');
+  handle.setAttribute('aria-label', 'Vị trí so sánh');
+  handle.setAttribute('aria-valuemin', '0');
+  handle.setAttribute('aria-valuemax', '100');
+  let dragging = false;
+  const move = e => {
+    const rect = box.getBoundingClientRect();
+    setSplit(((e.clientX - rect.left) / rect.width) * 100);
+  };
+  box.addEventListener('pointerdown', e => { dragging = true; box.setPointerCapture(e.pointerId); move(e); });
+  box.addEventListener('pointermove', e => dragging && move(e));
+  box.addEventListener('pointerup', () => { dragging = false; });
+  handle.addEventListener('keydown', e => {
+    if (e.key === 'ArrowLeft') { setSplit(split - 5); e.preventDefault(); }
+    if (e.key === 'ArrowRight') { setSplit(split + 5); e.preventDefault(); }
+  });
+  $('cmpClose').addEventListener('click', closeCompare);
+  $('cmpModal').addEventListener('click', e => { if (e.target.id === 'cmpModal') closeCompare(); });
+}
+
+/* ---------------- Wiring ---------------- */
+
+function bindInput() {
+  const drop = $('drop');
+  const input = $('fileInput');
+  drop.addEventListener('click', () => input.click());
+  drop.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); input.click(); } });
+  input.addEventListener('change', () => { addFiles(input.files); input.value = ''; });
+  ['dragenter', 'dragover'].forEach(t => document.addEventListener(t, e => { e.preventDefault(); drop.classList.add('over'); }));
+  ['dragleave', 'drop'].forEach(t => document.addEventListener(t, e => {
+    e.preventDefault();
+    if (t === 'drop' || !e.relatedTarget) drop.classList.remove('over');
+  }));
+  document.addEventListener('drop', e => e.dataTransfer?.files?.length && addFiles(e.dataTransfer.files));
+  document.addEventListener('paste', e => {
+    const files = [...(e.clipboardData?.files || [])];
+    if (files.length) { e.preventDefault(); addFiles(files); }
+  });
+}
+
+function bindTools() {
+  $('cropBtn').addEventListener('click', () => (cropping ? exitCrop(true) : enterCrop()));
+  $('rotLBtn').addEventListener('click', () => rotate(false));
+  $('rotRBtn').addEventListener('click', () => rotate(true));
+  $('flipBtn').addEventListener('click', flip);
+  $('compareBtn').addEventListener('click', openCompare);
+  $('dlOneBtn').addEventListener('click', () => downloadOne(active));
+  $('cropApply').addEventListener('click', () => exitCrop(true));
+  $('cropCancel').addEventListener('click', () => exitCrop(false));
+  $('cropReset').addEventListener('click', () => {
+    $('aspectChips').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.a === 'free'));
+    cropper.reset();
+  });
+  $('aspectChips').addEventListener('click', e => {
+    const b = e.target.closest('button');
+    if (!b || !active) return;
+    $('aspectChips').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
+    cropper.setAspect(aspectValue(b.dataset.a, realOriented(active)));
+  });
+  $('zipBtn').addEventListener('click', downloadZip);
+  $('clearBtn').addEventListener('click', clearAll);
+
+  document.addEventListener('keydown', e => {
+    if (e.target.closest?.('input, select, textarea')) return;
+    if (!$('cmpModal').hidden) { if (e.key === 'Escape') closeCompare(); return; }
+    if (cropping && e.key === 'Escape') return exitCrop(false);
+    if (cropping && e.key === 'Enter') return exitCrop(true);
+    if (!active || e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.key === 'c' || e.key === 'C') cropping ? exitCrop(true) : enterCrop();
+  });
+}
+
+async function init() {
+  encoders = await detectEncoders();
+  const avifBtn = $('fmtSeg').querySelector('[data-v="avif"]');
+  if (!encoders.avif) {
+    avifBtn.disabled = true;
+    avifBtn.title = 'Trình duyệt này chưa hỗ trợ xuất AVIF (dùng Safari 17+ hoặc Firefox mới).';
+    if (settings.format === 'avif') settings.format = 'webp';
+  }
+  if (!encoders.webp) {
+    const b = $('fmtSeg').querySelector('[data-v="webp"]');
+    b.disabled = true;
+    if (settings.format === 'webp') settings.format = 'jpeg';
+  }
+  syncSettingsUI();
+  bindSettings();
+  bindInput();
+  bindTools();
+  bindCompare();
+}
+
+init();

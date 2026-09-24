@@ -1,0 +1,217 @@
+/**
+ * PixPress — client-side image pipeline
+ * decode → xoay/lật → cắt → resize → encode → đo chất lượng
+ * Designed by Quoc-Phong Dang, M.Sc. (phongdang.io.vn)
+ */
+
+import { measureQuality } from './quality.js';
+import { exactPixels } from './crop.js';
+import { isHeic, decodeHeic } from './heic.js';
+import { stripLossless, addGaussianNoise } from './metadata.js';
+
+export const LIMITS = {
+  maxFiles: 30,
+  maxFileSize: 50 * 1024 * 1024,
+  maxPixels: 80 * 1e6
+};
+
+export const FB_MAX_SIDE = 2048;
+
+/** Độ lệch chuẩn nhiễu Gauss (thang 0–255) cho chế độ khử watermark AI. */
+export const NOISE_SIGMA = { light: 1.5, medium: 3, strong: 5 };
+
+export const FORMATS = {
+  jpeg: { mime: 'image/jpeg', ext: 'jpg', label: 'JPG', lossy: true },
+  webp: { mime: 'image/webp', ext: 'webp', label: 'WebP', lossy: true },
+  avif: { mime: 'image/avif', ext: 'avif', label: 'AVIF', lossy: true },
+  png: { mime: 'image/png', ext: 'png', label: 'PNG', lossy: false }
+};
+
+/** Kiểm tra trình duyệt có mã hóa được định dạng này qua canvas không (AVIF thường chỉ có trên Safari/Firefox mới). */
+export async function detectEncoders() {
+  const c = document.createElement('canvas');
+  c.width = c.height = 2;
+  const out = {};
+  for (const [key, f] of Object.entries(FORMATS)) {
+    out[key] = await new Promise(res => c.toBlob(b => res(Boolean(b && b.type === f.mime)), f.mime, 0.8));
+  }
+  return out;
+}
+
+export async function decode(file) {
+  try {
+    return await createImageBitmap(file, { imageOrientation: 'from-image' });
+  } catch {
+    // Chrome/Firefox không đọc được HEIC của iPhone → giải mã bằng libheif.
+    if (await isHeic(file)) {
+      try { return await decodeHeic(file); } catch { /* rơi xuống thông báo chung */ }
+    }
+    throw new Error('Không giải mã được ảnh (file hỏng hoặc trình duyệt không hỗ trợ định dạng này).');
+  }
+}
+
+const LABEL_BY_MIME = { 'image/jpeg': ['JPG', 'jpg'], 'image/png': ['PNG', 'png'], 'image/webp': ['WebP', 'webp'] };
+
+/** Chế độ "Chỉ xóa metadata": bỏ khối metadata trên byte, không giải mã/nén lại. Trả null nếu định dạng không hỗ trợ. */
+export async function processLossless(file, bitmap) {
+  const blob = await stripLossless(file);
+  if (!blob) return null;
+  const [formatLabel, ext] = LABEL_BY_MIME[blob.type];
+  return {
+    blob, mime: blob.type, ext, formatLabel,
+    w: bitmap.width, h: bitmap.height, origW: bitmap.width, origH: bitmap.height,
+    origSize: file.size, newSize: blob.size,
+    deltaPct: file.size > 0 ? ((file.size - blob.size) / file.size) * 100 : 0,
+    ssim: 1, psnr: Infinity, lossless: true
+  };
+}
+
+export function formatKeyFromMime(mime) {
+  if (mime === 'image/png') return 'png';
+  if (mime === 'image/webp') return 'webp';
+  if (mime === 'image/avif') return 'avif';
+  return 'jpeg';
+}
+
+/** Vẽ bitmap: xoay (0/90/180/270) trước, rồi lật ngang ảnh đã xoay. */
+export function orient(bitmap, rotate = 0, flipH = false) {
+  const rot = ((rotate % 360) + 360) % 360;
+  const swap = rot % 180 !== 0;
+  const w = swap ? bitmap.height : bitmap.width;
+  const h = swap ? bitmap.width : bitmap.height;
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  ctx.translate(w / 2, h / 2);
+  if (flipH) ctx.scale(-1, 1);
+  ctx.rotate((rot * Math.PI) / 180);
+  ctx.drawImage(bitmap, -bitmap.width / 2, -bitmap.height / 2);
+  return canvas;
+}
+
+/** Tính kích thước đích theo chế độ resize (không bao giờ phóng to trừ chế độ "exact"). */
+export function targetSize(w, h, opt) {
+  const mode = opt.resizeMode;
+  let limit = 0;
+  if (mode === 'fb') limit = FB_MAX_SIDE;
+  else if (mode === 'max') limit = Math.max(16, opt.maxSide | 0);
+  if (limit) {
+    const long = Math.max(w, h);
+    if (long <= limit) return { w, h };
+    const k = limit / long;
+    return { w: Math.max(1, Math.round(w * k)), h: Math.max(1, Math.round(h * k)) };
+  }
+  if (mode === 'exact') {
+    let tw = Math.max(1, opt.exactW | 0);
+    let th = Math.max(1, opt.exactH | 0);
+    if (opt.keepRatio) th = Math.max(1, Math.round((tw * h) / w));
+    return { w: tw, h: th };
+  }
+  if (mode === 'percent') {
+    const k = Math.min(100, Math.max(1, opt.percent | 0)) / 100;
+    return { w: Math.max(1, Math.round(w * k)), h: Math.max(1, Math.round(h * k)) };
+  }
+  return { w, h };
+}
+
+/** Cắt vùng (sx,sy,sw,sh) rồi thu nhỏ từng nấc ×0.5 để tránh răng cưa khi giảm mạnh. */
+function cropAndResize(src, sx, sy, sw, sh, tw, th) {
+  let cur = src;
+  let cx = sx, cy = sy, cw = sw, ch = sh;
+  while (cw / 2 >= tw && ch / 2 >= th) {
+    const nw = Math.round(cw / 2);
+    const nh = Math.round(ch / 2);
+    const step = document.createElement('canvas');
+    step.width = nw;
+    step.height = nh;
+    const sctx = step.getContext('2d');
+    sctx.imageSmoothingEnabled = true;
+    sctx.imageSmoothingQuality = 'high';
+    sctx.drawImage(cur, cx, cy, cw, ch, 0, 0, nw, nh);
+    cur = step;
+    cx = 0; cy = 0; cw = nw; ch = nh;
+  }
+  const out = document.createElement('canvas');
+  out.width = tw;
+  out.height = th;
+  const ctx = out.getContext('2d');
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(cur, cx, cy, cw, ch, 0, 0, tw, th);
+  return out;
+}
+
+/** Dựng canvas tham chiếu (đã xoay, cắt, resize) — chưa nén. */
+export function render(bitmap, edit, opt) {
+  const oriented = orient(bitmap, edit.rotate, edit.flipH);
+  const crop = edit.crop || { x: 0, y: 0, w: 1, h: 1 };
+  const { w: sw, h: sh } = exactPixels(crop, oriented.width, oriented.height);
+  const sx = Math.min(oriented.width - sw, Math.max(0, Math.round(crop.x * oriented.width)));
+  const sy = Math.min(oriented.height - sh, Math.max(0, Math.round(crop.y * oriented.height)));
+  const t = targetSize(sw, sh, opt);
+  const canvas = cropAndResize(oriented, sx, sy, sw, sh, t.w, t.h);
+  return { canvas, cropW: sw, cropH: sh };
+}
+
+function encode(canvas, mime, quality) {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(b => (b ? resolve(b) : reject(new Error('Mã hóa ảnh thất bại.'))), mime, mime === 'image/png' ? undefined : quality);
+  });
+}
+
+/** JPG không có kênh alpha → lót nền trắng để vùng trong suốt không thành màu đen. */
+function flatten(canvas) {
+  const c = document.createElement('canvas');
+  c.width = canvas.width;
+  c.height = canvas.height;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, c.width, c.height);
+  ctx.drawImage(canvas, 0, 0);
+  return c;
+}
+
+/**
+ * Xử lý trọn gói 1 ảnh.
+ * @param {File} file
+ * @param {ImageBitmap} bitmap
+ * @param {{rotate:number, flipH:boolean, crop:null|{x,y,w,h}}} edit
+ * @param {{format:string, quality:number, resizeMode:string, maxSide:number, exactW:number, exactH:number, keepRatio:boolean, percent:number}} opt
+ */
+export async function processImage(file, bitmap, edit, opt) {
+  const fmtKey = opt.format === 'keep' ? formatKeyFromMime(file.type) : opt.format;
+  const fmt = FORMATS[fmtKey] || FORMATS.jpeg;
+
+  const { canvas } = render(bitmap, edit, opt);
+  const source = fmt.mime === 'image/jpeg' ? flatten(canvas) : canvas;
+  // Khử watermark ẩn: thêm nhiễu vào bản sao; chất lượng vẫn đo so với ảnh chưa nhiễu.
+  let target = source;
+  if (opt.privacy === 'paranoid') {
+    target = document.createElement('canvas');
+    target.width = source.width;
+    target.height = source.height;
+    target.getContext('2d').drawImage(source, 0, 0);
+    addGaussianNoise(target, NOISE_SIGMA[opt.noise] ?? NOISE_SIGMA.light);
+  }
+  const blob = await encode(target, fmt.mime, opt.quality);
+
+  const quality = fmt.lossy || target !== source ? await measureQuality(source, blob) : { ssim: 1, psnr: Infinity };
+
+  const origSize = file.size;
+  const newSize = blob.size;
+  return {
+    blob,
+    mime: fmt.mime,
+    ext: fmt.ext,
+    formatLabel: fmt.label,
+    w: canvas.width,
+    h: canvas.height,
+    origW: bitmap.width,
+    origH: bitmap.height,
+    origSize,
+    newSize,
+    deltaPct: origSize > 0 ? ((origSize - newSize) / origSize) * 100 : 0,
+    ...quality
+  };
+}

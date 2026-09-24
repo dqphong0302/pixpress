@@ -1,0 +1,604 @@
+/*! PhongDang UI v2.0.0 */
+/* source: pdui-tokens.css */
+/* PhongDang UI Design System — canonical tokens (v2 "Xanh & Nâu")
+ *
+ * Tỷ lệ màu: ~90% nền trắng ngà · ~8% xanh (hành động) · ~2% nâu (nhấn: badge, nhãn, logo).
+ * Nút luôn dùng xanh (--primary); nâu (--accent) không bao giờ dùng cho nút.
+ * --accent-indigo* được giữ làm alias của --primary để các gradient cũ
+ * "primary → indigo" tự trở thành màu phẳng.
+ */
+:root {
+  color-scheme: light;
+  --font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  --font-heading: var(--font-sans);
+
+  /* Surfaces — trắng ngà, ấm */
+  --bg-body: #faf8f5;
+  --bg-card: #ffffff;
+  --bg-card-subtle: #f6f2ed;
+  --bg-input: #ffffff;
+  --bg-header: rgba(250, 248, 245, 0.82);
+  /* Control surface: a button must stay visible on a card of the same colour. */
+  --bg-control: #ffffff;
+  --bg-control-hover: #f6f2ed;
+  --border-control: #d9cfc3;
+  --border-color: #e8e2da;
+  --border-subtle: #f0ebe4;
+  --text-main: #1c1917;
+  --text-muted: #6b625a;
+  --text-subtle: #736960;
+
+  /* Xanh — hành động */
+  --primary: #1d4f91;
+  --primary-hover: #173f75;
+  --primary-light: rgba(29, 79, 145, 0.08);
+  --primary-border: rgba(29, 79, 145, 0.24);
+  --on-primary: #ffffff;
+
+  /* Nâu — điểm nhấn */
+  --accent: #8a5a34;
+  --accent-soft: #f4ece3;
+  --accent-text: #6b4226;
+
+  /* Legacy alias (v1 indigo) → xanh chính */
+  --accent-indigo: var(--primary);
+  --accent-indigo-hover: var(--primary-hover);
+  --accent-indigo-light: var(--primary-light);
+  --accent-indigo-border: var(--primary-border);
+
+  --danger: #c53030;
+  --danger-light: rgba(197, 48, 48, 0.08);
+  --success: #2f7a4f;
+  --success-light: rgba(47, 122, 79, 0.1);
+  --warning: #b45309;
+  --warning-light: rgba(217, 119, 6, 0.1);
+
+  --shadow-sm: 0 1px 2px rgba(28, 25, 23, 0.05);
+  --shadow-md: 0 4px 12px -2px rgba(28, 25, 23, 0.08), 0 1px 2px rgba(28, 25, 23, 0.04);
+  --shadow-card: 0 1px 2px rgba(28, 25, 23, 0.04);
+  --shadow-floating: 0 16px 40px -12px rgba(28, 25, 23, 0.22), 0 2px 6px rgba(28, 25, 23, 0.06);
+  /* v2 bỏ hiệu ứng phát sáng; giữ tên để app cũ không vỡ */
+  --shadow-glow: none;
+  --shadow-glow-indigo: none;
+
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
+  --radius-full: 9999px;
+
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --container-tool: 1440px;
+  --container-portal: 1200px;
+
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --transition-fast: 0.15s ease;
+  --transition-base: 0.2s ease;
+  --transition-smooth: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  --focus-ring: 0 0 0 3px var(--primary-light), 0 0 0 1px var(--primary);
+}
+
+html.dark {
+  color-scheme: dark;
+  /* Navy ấm: bề mặt mang sắc xanh thương hiệu, chữ ngả kem để hợp với nâu. */
+  --bg-body: #151d2b;
+  --bg-card: #1c2636;
+  --bg-card-subtle: #192231;
+  --bg-input: #151d2b;
+  --bg-header: rgba(21, 29, 43, 0.82);
+  --bg-control: #243044;
+  --bg-control-hover: #2c3a52;
+  --border-control: #4a5a75;
+  --border-color: #2c3850;
+  --border-subtle: #243044;
+  --text-main: #f3efe9;
+  --text-muted: #b7ada2;
+  --text-subtle: #9a9086;
+
+  --primary: #7fb0ee;
+  --primary-hover: #9cc3f3;
+  --primary-light: rgba(127, 176, 238, 0.13);
+  --primary-border: rgba(127, 176, 238, 0.32);
+  /* Xanh sáng cần chữ tối: chữ trắng trên #7fb0ee chỉ ~2.2:1 */
+  --on-primary: #0e1726;
+
+  --accent: #e0b98f;
+  --accent-soft: #3b2a1d;
+  --accent-text: #e8c9a6;
+
+  --danger: #f07a7a;
+  --danger-light: rgba(240, 122, 122, 0.13);
+  --success: #5cc48a;
+  --success-light: rgba(92, 196, 138, 0.13);
+  --warning: #f0a44b;
+  --warning-light: rgba(240, 164, 75, 0.13);
+
+  --shadow-sm: 0 1px 2px rgba(3, 7, 18, 0.35);
+  --shadow-md: 0 6px 16px -4px rgba(3, 7, 18, 0.5);
+  --shadow-card: 0 1px 2px rgba(3, 7, 18, 0.3);
+  --shadow-floating: 0 20px 44px -12px rgba(3, 7, 18, 0.7);
+}
+
+/* source: pdui-base.css */
+/* Base and accessibility */
+*, *::before, *::after { box-sizing: border-box; }
+
+html {
+  font-size: 15px;
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--bg-body);
+  color: var(--text-main);
+  font-family: var(--font-sans);
+  line-height: 1.6;
+  letter-spacing: -0.003em;
+  transition: background-color var(--transition-smooth), color var(--transition-smooth);
+}
+
+button, input, select, textarea { font: inherit; }
+img, svg, canvas, video { max-width: 100%; }
+a { color: var(--primary); }
+a:hover { color: var(--primary-hover); }
+
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid transparent;
+  box-shadow: var(--focus-ring);
+}
+
+.pd-sr-only {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+.pd-skip-link {
+  position: fixed;
+  top: var(--space-3);
+  left: var(--space-3);
+  z-index: 10000;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--primary);
+  color: var(--on-primary);
+  font-weight: 700;
+  transform: translateY(-160%);
+  transition: transform var(--transition-fast);
+}
+
+.pd-skip-link:focus { transform: translateY(0); }
+.pd-hidden { display: none !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* source: pdui-shell.css */
+/* Shared application shell */
+.pd-container {
+  width: min(100% - 2rem, var(--container-tool));
+  margin-inline: auto;
+}
+
+body[data-pdui-profile="portal"] .pd-container { max-width: var(--container-portal); }
+
+.pd-header.pd-header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  min-height: 60px;
+  background: var(--bg-header);
+  border-bottom: 1px solid var(--border-color);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.pd-header__inner.pd-header__inner {
+  min-height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.pd-brand.pd-brand {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  color: var(--text-main);
+  text-decoration: none;
+}
+
+.pd-brand__icon.pd-brand__icon {
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-md);
+  background: var(--primary);
+  color: var(--on-primary);
+}
+
+.pd-brand__title {
+  display: block;
+  color: var(--text-main);
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: 1rem;
+  line-height: 1.2;
+  letter-spacing: -0.015em;
+}
+
+.pd-brand__subtitle {
+  display: block;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  line-height: 1.25;
+}
+
+.pd-header__actions.pd-header__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.pd-main.pd-main {
+  min-width: 0;
+  flex: 1 0 auto;
+  padding-block: var(--space-6) var(--space-10);
+}
+
+.pd-footer.pd-footer {
+  margin-top: auto;
+  padding-block: var(--space-6);
+  border-top: 1px solid var(--border-color);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.pd-footer__inner.pd-footer__inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+}
+
+.pd-footer__links { display: flex; flex-wrap: wrap; gap: var(--space-5); }
+.pd-footer a { color: var(--text-muted); text-decoration: none; }
+.pd-footer a:hover { color: var(--primary); }
+
+@media (max-width: 700px) {
+  .pd-container { width: min(100% - 1.5rem, var(--container-tool)); }
+  .pd-header__inner.pd-header__inner { gap: var(--space-2); }
+  .pd-brand__subtitle { display: none; }
+  .pd-header__actions.pd-header__actions { gap: var(--space-1); }
+  .pd-footer__inner.pd-footer__inner { justify-content: center; text-align: center; }
+}
+
+/* Ecosystem line — một dòng giới thiệu phongdang.io.vn và classtools.vn ở footer mọi app. */
+.pd-eco-line { flex: 1 1 100%; margin: 0 0 var(--space-2); color: var(--text-muted); font-size: 0.82rem; text-align: center; }
+.pd-eco-line a { color: var(--text-main); font-weight: 500; text-decoration: none; }
+.pd-eco-line a:hover { color: var(--primary); }
+
+/* source: pdui-components.css */
+/* Shared components — v2 "Xanh & Nâu"
+ * Quy tắc: 1 nút primary mỗi vùng · không gradient/glow · icon SVG nét 1.8 · chữ 400/500/600.
+ */
+
+/* Icon co giãn theo cỡ chữ để thay được emoji ở mọi kích thước */
+.pd-icon { display: inline-block; width: 1.2em; height: 1.2em; flex: none; vertical-align: -0.2em; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+/* Card */
+.pd-card.pd-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-card);
+  overflow: clip;
+}
+.pd-card__header { padding: var(--space-5) var(--space-6); border-bottom: 1px solid var(--border-color); }
+.pd-card__body { padding: var(--space-6); }
+.pd-card__footer { padding: var(--space-4) var(--space-6); border-top: 1px solid var(--border-color); }
+
+/* Buttons: primary · secondary (mặc định) · ghost · danger · icon */
+.pd-btn.pd-btn, .pd-icon-btn.pd-icon-btn {
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg-control);
+  color: var(--text-main);
+  font-size: 0.875rem;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  transition: background-color var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast), transform 0.1s;
+}
+.pd-btn.pd-btn { padding: 0 1rem; }
+.pd-icon-btn.pd-icon-btn { width: 40px; padding: 0; }
+.pd-btn:hover, .pd-icon-btn:hover { background: var(--bg-control-hover); border-color: var(--border-control); }
+.pd-btn:active, .pd-icon-btn:active { transform: scale(0.97); }
+.pd-btn[disabled], .pd-icon-btn[disabled] { cursor: not-allowed; opacity: 0.5; transform: none; }
+.pd-btn--primary.pd-btn--primary { color: var(--on-primary); border-color: transparent; background: var(--primary); box-shadow: none; }
+.pd-btn--primary.pd-btn--primary:hover { background: var(--primary-hover); }
+.pd-btn--secondary.pd-btn--secondary { background: var(--bg-control); }
+.pd-btn--ghost.pd-btn--ghost { border-color: transparent; background: transparent; box-shadow: none; color: var(--text-muted); }
+.pd-btn--ghost.pd-btn--ghost:hover { background: var(--bg-card-subtle); color: var(--text-main); }
+.pd-btn--danger.pd-btn--danger { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 30%, transparent); background: var(--danger-light); box-shadow: none; }
+.pd-btn--sm.pd-btn--sm { min-height: 32px; padding: 0 0.75rem; font-size: 0.8rem; border-radius: var(--radius-sm); }
+.pd-btn--lg.pd-btn--lg { min-height: 48px; padding: 0 1.4rem; font-size: 0.95rem; border-radius: var(--radius-lg); }
+.pd-icon-btn--ghost.pd-icon-btn--ghost { border-color: transparent; background: transparent; box-shadow: none; color: var(--text-muted); }
+.pd-icon-btn--ghost.pd-icon-btn--ghost:hover { background: var(--bg-card-subtle); color: var(--text-main); }
+
+/* Form */
+.pd-field { display: grid; gap: var(--space-2); }
+.pd-label { color: var(--text-main); font-weight: 500; font-size: 0.85rem; }
+.pd-input.pd-input, .pd-select.pd-select, .pd-textarea.pd-textarea {
+  width: 100%;
+  min-height: 40px;
+  padding: 0.55rem 0.8rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg-input);
+  color: var(--text-main);
+  font-size: 0.9rem;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+.pd-textarea.pd-textarea { min-height: 7rem; resize: vertical; }
+.pd-input:hover, .pd-select:hover, .pd-textarea:hover { border-color: var(--border-control); }
+.pd-input:focus, .pd-select:focus, .pd-textarea:focus { outline: none; border-color: var(--primary); box-shadow: var(--focus-ring); }
+.pd-field__hint { color: var(--text-subtle); font-size: 0.78rem; }
+.pd-field__error { color: var(--danger); font-size: 0.78rem; }
+
+/* Switch: <input type="checkbox" class="pd-switch" role="switch"> */
+.pd-switch {
+  -webkit-appearance: none;
+  appearance: none;
+  position: relative;
+  width: 36px;
+  height: 22px;
+  flex: none;
+  margin: 0;
+  border-radius: var(--radius-full);
+  background: var(--border-control);
+  cursor: pointer;
+  transition: background-color 0.2s var(--ease-out);
+}
+.pd-switch::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  transition: transform 0.2s var(--ease-out);
+}
+.pd-switch:checked { background: var(--primary); }
+.pd-switch:checked::after { transform: translateX(14px); }
+
+/* Segmented control: .pd-seg > button(.active | aria-pressed="true") */
+.pd-seg {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--bg-card-subtle);
+}
+.pd-seg > button, .pd-seg > a {
+  min-height: 32px;
+  padding: 0 0.8rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color var(--transition-fast), color var(--transition-fast), box-shadow var(--transition-fast);
+}
+.pd-seg > :hover:not(.active):not([aria-pressed="true"]) { color: var(--text-main); }
+.pd-seg > .active, .pd-seg > [aria-pressed="true"], .pd-seg > [aria-selected="true"] {
+  background: var(--bg-card);
+  color: var(--text-main);
+  box-shadow: var(--shadow-sm), 0 0 0 1px var(--border-color);
+}
+html.dark .pd-seg > .active, html.dark .pd-seg > [aria-pressed="true"], html.dark .pd-seg > [aria-selected="true"] { background: var(--bg-control-hover); }
+.pd-seg--fill { display: flex; }
+.pd-seg--fill > * { flex: 1; }
+
+/* Tabs (giữ API v1, hình thức giống segmented) */
+.pd-tabs { display: flex; gap: 2px; padding: 3px; border: 1px solid var(--border-subtle); border-radius: var(--radius-md); background: var(--bg-card-subtle); }
+.pd-tab { min-height: 34px; padding: 0 0.85rem; border: 0; border-radius: 7px; background: transparent; color: var(--text-muted); font-weight: 500; font-size: 0.85rem; cursor: pointer; }
+.pd-tab:hover { color: var(--text-main); }
+.pd-tab[aria-selected="true"], .pd-tab.active { background: var(--bg-card); color: var(--text-main); box-shadow: var(--shadow-sm), 0 0 0 1px var(--border-color); }
+
+/* Floating toolbar: .pd-toolbar > .pd-tool[data-tip] */
+.pd-toolbar {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  background: var(--bg-card);
+  box-shadow: var(--shadow-md);
+}
+.pd-toolbar__sep { width: 1px; height: 20px; margin: 0 4px; background: var(--border-color); }
+.pd-tool {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background-color var(--transition-fast), color var(--transition-fast), transform 0.1s;
+}
+.pd-tool:hover { background: var(--bg-card-subtle); color: var(--text-main); }
+.pd-tool:active { transform: scale(0.94); }
+.pd-tool.active, .pd-tool[aria-pressed="true"] { background: var(--primary-light); color: var(--primary); }
+.pd-tool[data-tip]::after {
+  content: attr(data-tip);
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  z-index: 5;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: var(--text-main);
+  color: var(--bg-body);
+  font-size: 0.72rem;
+  font-weight: 500;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, -4px);
+  transition: opacity var(--transition-fast), transform var(--transition-fast);
+}
+.pd-tool[data-tip]:hover::after, .pd-tool[data-tip]:focus-visible::after { opacity: 1; transform: translate(-50%, 0); }
+@media (hover: none) { .pd-tool[data-tip]::after { display: none; } }
+
+/* Dropzone */
+.pd-dropzone {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: 1.75rem;
+  border: 1.5px dashed var(--border-control);
+  border-radius: var(--radius-xl);
+  background: var(--bg-card);
+  cursor: pointer;
+  transition: border-color 0.2s var(--ease-out), background-color 0.2s var(--ease-out);
+}
+.pd-dropzone:hover, .pd-dropzone.is-over, .pd-dropzone.over, .pd-dropzone.dragover { border-color: var(--primary); background: var(--primary-light); }
+.pd-dropzone__icon { width: 48px; height: 48px; flex: none; display: grid; place-items: center; border-radius: var(--radius-lg); background: var(--primary-light); color: var(--primary); }
+
+/* Stat tile (bento) */
+.pd-tile { display: flex; flex-direction: column; gap: 2px; min-width: 0; padding: 14px 16px; border-radius: var(--radius-lg); background: var(--bg-card-subtle); }
+.pd-tile__label { color: var(--text-muted); font-size: 0.78rem; font-weight: 500; }
+.pd-tile__value { font-size: 1.75rem; font-weight: 600; line-height: 1.15; letter-spacing: -0.035em; font-variant-numeric: tabular-nums; }
+.pd-tile__sub { color: var(--text-muted); font-size: 0.8rem; }
+.pd-progress { display: block; height: 4px; border-radius: var(--radius-full); background: var(--border-color); overflow: hidden; }
+.pd-progress > span { display: block; height: 100%; border-radius: inherit; background: var(--primary); transition: width 0.5s var(--ease-out); }
+
+/* Eyebrow & badges */
+.pd-eyebrow { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: var(--radius-full); background: var(--accent-soft); color: var(--accent-text); font-size: 0.75rem; font-weight: 500; }
+.pd-badge { display: inline-flex; align-items: center; gap: var(--space-1); padding: 0.15rem 0.55rem; border-radius: var(--radius-full); background: var(--primary-light); color: var(--primary); font-size: 0.74rem; font-weight: 500; }
+.pd-badge--accent { background: var(--accent-soft); color: var(--accent-text); }
+.pd-badge--success { background: var(--success-light); color: var(--success); }
+.pd-badge--warning { background: var(--warning-light); color: var(--warning); }
+.pd-badge--danger { background: var(--danger-light); color: var(--danger); }
+.pd-kbd { display: inline-block; min-width: 20px; padding: 0 5px; border: 1px solid var(--border-color); border-bottom-width: 2px; border-radius: 5px; background: var(--bg-card); font-family: var(--font-mono); font-size: 0.7rem; line-height: 1.5; text-align: center; }
+
+.pd-empty-state { display: grid; place-items: center; gap: var(--space-2); padding: var(--space-10); color: var(--text-muted); text-align: center; }
+
+/* Toast: viên tối giữa-dưới, không emoji */
+.pd-toast {
+  position: fixed;
+  left: 50%;
+  bottom: var(--space-6);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  max-width: min(28rem, calc(100vw - 2rem));
+  padding: 10px 16px;
+  border-radius: var(--radius-lg);
+  background: var(--text-main);
+  color: var(--bg-body);
+  font-size: 0.875rem;
+  font-weight: 500;
+  box-shadow: var(--shadow-floating);
+  transform: translate(-50%, 16px);
+  opacity: 0;
+  pointer-events: none;
+  transition: transform var(--transition-smooth), opacity var(--transition-smooth);
+}
+.pd-toast--visible { transform: translate(-50%, 0); opacity: 1; pointer-events: auto; }
+.pd-toast__dot { width: 8px; height: 8px; flex: none; border-radius: 50%; background: var(--success); }
+.pd-toast--error .pd-toast__dot { background: var(--danger); }
+.pd-toast--warning .pd-toast__dot { background: var(--warning); }
+.pd-toast--info .pd-toast__dot { background: var(--primary); }
+
+/* Modal */
+.pd-modal { position: fixed; inset: 0; z-index: 900; display: grid; place-items: center; padding: var(--space-4); background: rgba(15, 20, 28, 0.6); backdrop-filter: blur(8px); }
+.pd-modal__dialog { width: min(36rem, 100%); max-height: min(85vh, 48rem); overflow: auto; border: 1px solid var(--border-color); border-radius: var(--radius-xl); background: var(--bg-card); box-shadow: var(--shadow-floating); }
+
+@media (max-width: 600px) {
+  .pd-card__header, .pd-card__body, .pd-card__footer { padding-inline: var(--space-4); }
+  .pd-toast { bottom: var(--space-3); }
+  .pd-dropzone { flex-direction: column; text-align: center; }
+}
+
+/* source: pdui-utilities.css */
+/* Deliberately small, closed utility set */
+.pd-flex { display: flex; }
+.pd-grid { display: grid; }
+.pd-stack { display: grid; gap: var(--space-4); }
+.pd-items-center { align-items: center; }
+.pd-justify-between { justify-content: space-between; }
+.pd-gap-2 { gap: var(--space-2); }
+.pd-gap-4 { gap: var(--space-4); }
+.pd-w-full { width: 100%; }
+
+/* source: profiles/pdui-tool.css */
+body[data-pdui-profile="tool"] {
+  --pdui-content-width: var(--container-tool);
+}
+
+body[data-pdui-profile="tool"] .pd-main { width: 100%; }
+
+/* source: profiles/pdui-portal.css */
+body[data-pdui-profile="portal"] {
+  --pdui-content-width: var(--container-portal);
+}
+
+/* v2: portal dùng chung Inter với tool; tiêu đề đậm vừa và khít chữ */
+body[data-pdui-profile="portal"] :where(h1, h2, h3) { letter-spacing: -0.025em; }

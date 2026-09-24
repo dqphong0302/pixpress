@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PixPress — Nén, Đổi định dạng, Resize &amp; Cắt ảnh | phongdang.io.vn</title>
+  <meta name="description" content="PixPress: nén ảnh (kể cả HEIC iPhone), chuyển JPG/PNG/WebP/AVIF, xóa metadata & dấu vết AI (C2PA, GPS, prompt), resize chuẩn Facebook HD 2048px và cắt ảnh theo tỷ lệ — báo % giảm dung lượng và điểm chất lượng. Xử lý 100% trên trình duyệt, không upload." />
+  <meta name="theme-color" content="#faf8f5" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22><rect width=%2232%22 height=%2232%22 rx=%228%22 fill=%22%231d4f91%22/><path d=%22M11 6v14a2 2 0 0 0 2 2h13M21 26V12a2 2 0 0 0-2-2H6%22 fill=%22none%22 stroke=%22white%22 stroke-width=%222.4%22 stroke-linecap=%22round%22/></svg>" />
+
+  <script>
+    // Lần đầu vào trang mặc định Sáng (thương hiệu xanh & nâu trên nền trắng ngà); sau đó nhớ lựa chọn của người dùng.
+    (function () {
+      try {
+        var t = localStorage.getItem('pd_theme');
+        if (t !== 'light' && t !== 'dark') { t = 'light'; localStorage.setItem('pd_theme', t); }
+        document.documentElement.classList.toggle('dark', t === 'dark');
+      } catch (e) {}
+    })();
+  </script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="./vendor/pdui/pdui.css">
+  <link rel="stylesheet" href="./css/app.css">
+</head>
+
+<body data-pdui-profile="tool">
+  <!-- Bộ icon (Lucide, MIT) -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <symbol id="i-crop" viewBox="0 0 24 24"><path d="M6 2v14a2 2 0 0 0 2 2h14"/><path d="M18 22V8a2 2 0 0 0-2-2H2"/></symbol>
+      <symbol id="i-rotate-ccw" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></symbol>
+      <symbol id="i-rotate-cw" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></symbol>
+      <symbol id="i-flip" viewBox="0 0 24 24"><path d="m3 7 5 5-5 5V7"/><path d="m21 7-5 5 5 5V7"/><path d="M12 20v2M12 14v2M12 8v2M12 2v2"/></symbol>
+      <symbol id="i-compare" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M12 3v18"/></symbol>
+      <symbol id="i-download" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></symbol>
+      <symbol id="i-upload" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5"/><path d="M12 3v12"/></symbol>
+      <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></symbol>
+      <symbol id="i-moon" viewBox="0 0 24 24"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></symbol>
+      <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+      <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></symbol>
+      <symbol id="i-facebook" viewBox="0 0 24 24"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></symbol>
+      <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20M2 12h20"/></symbol>
+      <symbol id="i-feather" viewBox="0 0 24 24"><path d="M12.67 19a2 2 0 0 0 1.416-.588l6.154-6.172a6 6 0 0 0-8.49-8.49L5.586 9.914A2 2 0 0 0 5 11.328V18a1 1 0 0 0 1 1z"/><path d="M16 8 2 22M17.5 15H9"/></symbol>
+      <symbol id="i-package" viewBox="0 0 24 24"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5M12 22V12"/></symbol>
+      <symbol id="i-repeat" viewBox="0 0 24 24"><path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></symbol>
+      <symbol id="i-resize" viewBox="0 0 24 24"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></symbol>
+      <symbol id="i-gauge" viewBox="0 0 24 24"><path d="m12 14 4-4"/><path d="M3.34 19a10 10 0 1 1 17.32 0"/></symbol>
+      <symbol id="i-shield" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></symbol>
+      <symbol id="i-image" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.09-3.09a2 2 0 0 0-2.82 0L6 21"/></symbol>
+      <symbol id="i-arrow-right" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></symbol>
+    </defs>
+  </svg>
+
+  <a class="pd-skip-link" href="#main-content">Bỏ qua đến nội dung chính</a>
+
+  <header class="pd-header">
+    <div class="pd-container pd-header__inner px-shell">
+      <a href="https://phongdang.io.vn" class="pd-brand">
+        <span class="pd-brand__icon"><svg class="px-ico"><use href="#i-crop"/></svg></span>
+        <span>
+          <span class="pd-brand__title">PixPress</span>
+          <span class="pd-brand__subtitle">phongdang.io.vn</span>
+        </span>
+      </a>
+      <div class="pd-header__actions">
+        <button class="px-icon-btn" data-pd-theme-toggle type="button" aria-label="Chuyển giao diện Sáng / Tối" title="Sáng / Tối">
+          <svg class="px-ico px-ico-moon"><use href="#i-moon"/></svg>
+          <svg class="px-ico px-ico-sun"><use href="#i-sun"/></svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main id="main-content" class="pd-main px-main">
+    <div class="pd-container px-shell">
+
+      <section class="px-hero">
+        <span class="px-eyebrow">Công cụ ảnh · miễn phí · không upload</span>
+        <h1 class="px-title">Nén, resize và cắt ảnh — vừa khít mọi nơi</h1>
+        <p class="px-lead">Giảm dung lượng, đổi định dạng, cắt theo tỷ lệ, xuất đúng chuẩn <strong>Facebook HD 2048&nbsp;px</strong> và xóa sạch metadata cùng dấu vết AI. Nhận cả ảnh <strong>HEIC của iPhone</strong>. Mọi xử lý diễn ra ngay trên trình duyệt của bạn.</p>
+      </section>
+
+      <div id="drop" class="px-drop" tabindex="0" role="button" aria-label="Kéo thả, dán hoặc bấm để chọn ảnh">
+        <span class="px-drop-icon"><svg class="px-ico"><use href="#i-upload"/></svg></span>
+        <span class="px-drop-text">
+          <strong>Kéo thả ảnh vào đây</strong> hoặc <span class="px-drop-link">chọn từ máy</span>
+          <span class="px-drop-hint">JPG, PNG, WebP, HEIC (iPhone), AVIF, GIF · tối đa 30 ảnh, 50 MB/ảnh · dán nhanh bằng <kbd>Ctrl</kbd> <kbd>V</kbd></span>
+        </span>
+        <input type="file" id="fileInput" accept="image/*,.heic,.heif" multiple hidden />
+      </div>
+
+      <section class="px-work" id="work" hidden>
+        <div class="px-editor">
+          <div class="px-toolbar" role="toolbar" aria-label="Công cụ chỉnh ảnh">
+            <div class="px-toolgroup">
+              <button class="px-tool" id="cropBtn" type="button" aria-label="Cắt ảnh" data-tip="Cắt · C"><svg class="px-ico"><use href="#i-crop"/></svg></button>
+              <button class="px-tool" id="rotLBtn" type="button" aria-label="Xoay trái" data-tip="Xoay trái"><svg class="px-ico"><use href="#i-rotate-ccw"/></svg></button>
+              <button class="px-tool" id="rotRBtn" type="button" aria-label="Xoay phải" data-tip="Xoay phải"><svg class="px-ico"><use href="#i-rotate-cw"/></svg></button>
+              <button class="px-tool" id="flipBtn" type="button" aria-label="Lật ngang" data-tip="Lật ngang"><svg class="px-ico"><use href="#i-flip"/></svg></button>
+              <span class="px-toolsep" aria-hidden="true"></span>
+              <button class="px-tool" id="compareBtn" type="button" aria-label="So sánh trước và sau" data-tip="So sánh"><svg class="px-ico"><use href="#i-compare"/></svg></button>
+            </div>
+            <button class="px-btn px-btn--primary" id="dlOneBtn" type="button"><svg class="px-ico"><use href="#i-download"/></svg>Tải ảnh</button>
+          </div>
+
+          <div class="px-cropbar" id="cropBar" hidden>
+            <div class="px-seg px-seg--scroll" id="aspectChips" role="group" aria-label="Tỷ lệ cắt">
+              <button type="button" data-a="free" class="on">Tự do</button>
+              <button type="button" data-a="orig">Gốc</button>
+              <button type="button" data-a="1">1:1</button>
+              <button type="button" data-a="0.8">4:5</button>
+              <button type="button" data-a="1.7778">16:9</button>
+              <button type="button" data-a="0.5625">9:16</button>
+              <button type="button" data-a="1.5">3:2</button>
+              <button type="button" data-a="0.75">3:4</button>
+              <button type="button" data-a="1.91">1.91:1</button>
+            </div>
+            <div class="px-cropbar-actions">
+              <button type="button" class="px-btn px-btn--ghost" id="cropReset">Bỏ cắt</button>
+              <button type="button" class="px-btn px-btn--secondary" id="cropCancel">Hủy</button>
+              <button type="button" class="px-btn px-btn--primary" id="cropApply">Áp dụng</button>
+            </div>
+          </div>
+
+          <div class="px-stage" id="stage">
+            <img id="previewImg" class="px-preview" alt="Ảnh sau khi xử lý" />
+            <div class="px-crop-host" id="cropHost" hidden></div>
+            <div class="px-busy" id="busy" hidden><span class="px-spinner"></span>Đang xử lý</div>
+          </div>
+
+          <div class="px-bento" id="stats" aria-live="polite">
+            <div class="px-tile px-tile--wide">
+              <div class="px-tile-head"><span class="px-tile-lbl">Dung lượng</span><span class="px-badge" id="stFmt">—</span></div>
+              <span class="px-tile-num" id="stDelta">—</span>
+              <span class="px-bar"><span id="stSaveBar"></span></span>
+              <span class="px-tile-sub" id="stSize">—</span>
+            </div>
+            <div class="px-tile">
+              <span class="px-tile-lbl">Chất lượng</span>
+              <span class="px-tile-num px-tile-num--md" id="stQuality">—</span>
+              <span class="px-bar"><span id="stMeter"></span></span>
+              <span class="px-tile-sub" id="stQualityLbl">—</span>
+            </div>
+            <div class="px-tile">
+              <span class="px-tile-lbl">Kích thước</span>
+              <span class="px-tile-num px-tile-num--md px-mono" id="stDim">—</span>
+              <span class="px-tile-sub" id="stDimSub">—</span>
+              <span class="px-tile-sub" id="stPsnr">—</span>
+            </div>
+          </div>
+          <p class="px-note" id="warnNote" hidden></p>
+          <div class="px-meta" id="metaBox" hidden>
+            <div class="px-meta-head">
+              <span class="px-meta-title"><svg class="px-ico"><use href="#i-shield"/></svg>Metadata trong ảnh gốc</span>
+              <span class="px-badge" id="metaStatus"></span>
+            </div>
+            <ul class="px-meta-list" id="metaList"></ul>
+          </div>
+        </div>
+
+        <aside class="px-panel" aria-label="Tùy chọn xuất ảnh">
+          <div class="px-group">
+            <h2 class="px-group-title">Metadata &amp; dấu vết AI</h2>
+            <div class="px-seg px-seg--fill" id="privacySeg" role="group" aria-label="Xử lý metadata">
+              <button type="button" data-v="clean">Xóa sạch</button>
+              <button type="button" data-v="paranoid">Khử watermark AI</button>
+              <button type="button" data-v="lossless">Chỉ xóa</button>
+            </div>
+            <div class="px-noise" id="noiseRow" hidden>
+              <span class="px-noise-label">Mức nhiễu</span>
+              <div class="px-seg px-seg--fill" id="noiseSeg" role="group" aria-label="Mức nhiễu">
+                <button type="button" data-v="light" title="σ 1.5 — gần như không thấy">Nhẹ</button>
+                <button type="button" data-v="medium" title="σ 3 — hơi sần khi phóng to">Vừa</button>
+                <button type="button" data-v="strong" title="σ 5 — thấy hạt ở vùng phẳng">Mạnh</button>
+              </div>
+            </div>
+            <p class="px-hint" id="privacyHint"></p>
+          </div>
+
+          <div class="px-group" id="groupPresets">
+            <h2 class="px-group-title">Mẫu nhanh</h2>
+            <div class="px-presets" id="presets">
+              <button type="button" data-p="none" class="px-preset">
+                <span class="px-preset-ico"><svg class="px-ico"><use href="#i-image"/></svg></span>
+                <span><strong>Không dùng mẫu</strong><small>Giữ định dạng &amp; kích thước gốc · 92%</small></span>
+              </button>
+              <button type="button" data-p="fb" class="px-preset">
+                <span class="px-preset-ico"><svg class="px-ico"><use href="#i-facebook"/></svg></span>
+                <span><strong>Facebook HD</strong><small>2048 px · JPG 92%</small></span>
+              </button>
+              <button type="button" data-p="web" class="px-preset">
+                <span class="px-preset-ico"><svg class="px-ico"><use href="#i-globe"/></svg></span>
+                <span><strong>Web nhẹ</strong><small>1600 px · WebP 80%</small></span>
+              </button>
+              <button type="button" data-p="tiny" class="px-preset">
+                <span class="px-preset-ico"><svg class="px-ico"><use href="#i-feather"/></svg></span>
+                <span><strong>Siêu nhẹ</strong><small>1280 px · WebP 65%</small></span>
+              </button>
+            </div>
+          </div>
+
+          <div class="px-group" id="groupFormat">
+            <h2 class="px-group-title">Định dạng</h2>
+            <div class="px-seg px-seg--fill" id="fmtSeg" role="group" aria-label="Định dạng xuất">
+              <button type="button" data-v="keep">Gốc</button>
+              <button type="button" data-v="jpeg">JPG</button>
+              <button type="button" data-v="webp">WebP</button>
+              <button type="button" data-v="avif">AVIF</button>
+              <button type="button" data-v="png">PNG</button>
+            </div>
+          </div>
+
+          <div class="px-group" id="qualityGroup">
+            <h2 class="px-group-title">Chất lượng <output class="px-out" id="qualityOut">82%</output></h2>
+            <input type="range" class="px-range" id="quality" min="30" max="100" value="82" aria-label="Chất lượng nén" />
+            <div class="px-range-legend"><span>Nhẹ hơn</span><span>Nét hơn</span></div>
+          </div>
+
+          <div class="px-group" id="groupSize">
+            <h2 class="px-group-title">Kích thước</h2>
+            <div class="px-select-wrap">
+              <select class="px-select" id="resizeMode" aria-label="Chế độ resize">
+                <option value="none">Giữ nguyên kích thước</option>
+                <option value="fb">Facebook HD — cạnh dài 2048 px</option>
+                <option value="max">Cạnh dài tối đa</option>
+                <option value="percent">Theo phần trăm</option>
+                <option value="exact">Rộng × Cao tùy chỉnh</option>
+              </select>
+            </div>
+            <div class="px-sub" data-for="max" hidden>
+              <label class="px-field"><span>Cạnh dài tối đa</span><span class="px-input-unit"><input type="number" class="px-num" id="maxSide" value="1920" min="16" max="16000" /><em>px</em></span></label>
+            </div>
+            <div class="px-sub" data-for="percent" hidden>
+              <label class="px-field"><span>Tỷ lệ so với gốc</span><span class="px-input-unit"><input type="number" class="px-num" id="percent" value="50" min="1" max="100" /><em>%</em></span></label>
+            </div>
+            <div class="px-sub" data-for="exact" hidden>
+              <div class="px-wh">
+                <label class="px-input-unit"><input type="number" class="px-num" id="exactW" value="1200" min="1" max="16000" aria-label="Rộng" /><em>W</em></label>
+                <span class="px-times">×</span>
+                <label class="px-input-unit"><input type="number" class="px-num" id="exactH" value="630" min="1" max="16000" aria-label="Cao" /><em>H</em></label>
+              </div>
+              <label class="px-switch-row"><input type="checkbox" class="px-switch" id="keepRatio" checked role="switch" /><span>Giữ tỷ lệ (tự tính chiều cao)</span></label>
+            </div>
+            <p class="px-tip" id="fbTip" hidden>Facebook giữ ảnh nét nhất khi cạnh dài <strong>đúng 2048 px</strong>. Ảnh lớn hơn sẽ bị Facebook thu nhỏ và nén lại. Nhớ chọn “Tải lên HD” nếu ứng dụng hỏi.</p>
+          </div>
+        </aside>
+      </section>
+
+      <section class="px-batch" id="batch" hidden>
+        <div class="px-batch-head">
+          <div class="px-sum">
+            <div><span class="px-sum-num" id="sumCount">0</span><span class="px-sum-lbl">Ảnh</span></div>
+            <div><span class="px-sum-num" id="sumBefore">—</span><span class="px-sum-lbl">Trước</span></div>
+            <div><span class="px-sum-num" id="sumAfter">—</span><span class="px-sum-lbl">Sau</span></div>
+            <div><span class="px-sum-num px-good" id="sumPct">—</span><span class="px-sum-lbl">Tiết kiệm</span></div>
+          </div>
+          <div class="px-sum-actions">
+            <button type="button" class="px-btn px-btn--ghost" id="clearBtn"><svg class="px-ico"><use href="#i-trash"/></svg>Xóa hết</button>
+            <button type="button" class="px-btn px-btn--secondary" id="zipBtn"><svg class="px-ico"><use href="#i-package"/></svg>Tải tất cả (.zip)</button>
+          </div>
+        </div>
+        <ul class="px-queue" id="queue"></ul>
+      </section>
+
+      <section class="px-feats" aria-labelledby="featsTitle">
+        <span class="px-eyebrow">Tính năng</span>
+        <h2 class="px-feats-title" id="featsTitle">Mọi thứ cần để ảnh gọn và đẹp</h2>
+        <div class="px-feats-grid">
+          <div class="px-feat"><span class="px-feat-ico"><svg class="px-ico"><use href="#i-package"/></svg></span><b>SlimMode</b><span>Nén và báo % tiết kiệm cho từng ảnh lẫn cả lô.</span></div>
+          <div class="px-feat"><span class="px-feat-ico"><svg class="px-ico"><use href="#i-repeat"/></svg></span><b>SwapMode</b><span>Đổi qua lại JPG, PNG, WebP và AVIF.</span></div>
+          <div class="px-feat"><span class="px-feat-ico"><svg class="px-ico"><use href="#i-resize"/></svg></span><b>FitMode</b><span>Cạnh dài tối đa, theo %, hoặc Rộng × Cao chính xác.</span></div>
+          <div class="px-feat"><span class="px-feat-ico"><svg class="px-ico"><use href="#i-facebook"/></svg></span><b>FB-HD 2048</b><span>Một chạm để ảnh Facebook nét, không bị nén lại.</span></div>
+          <div class="px-feat"><span class="px-feat-ico"><svg class="px-ico"><use href="#i-crop"/></svg></span><b>CropMode</b><span>Cắt tự do hoặc 1:1, 4:5, 16:9, 9:16… kèm xoay, lật.</span></div>
+          <div class="px-feat"><span class="px-feat-ico"><svg class="px-ico"><use href="#i-gauge"/></svg></span><b>QualityScore</b><span>Đo SSIM và PSNR để biết ảnh có bị vỡ hay không.</span></div>
+          <div class="px-feat"><span class="px-feat-ico"><svg class="px-ico"><use href="#i-shield"/></svg></span><b>ClearMode</b><span>Phát hiện và xóa EXIF, GPS, C2PA, prompt AI; tùy chọn khử watermark ẩn.</span></div>
+          <div class="px-feat"><span class="px-feat-ico"><svg class="px-ico"><use href="#i-image"/></svg></span><b>Ảnh iPhone</b><span>Nhận ảnh HEIC/HEIF, tự xoay đúng chiều, xuất JPG/WebP.</span></div>
+        </div>
+        <p class="px-privacy"><svg class="px-ico"><use href="#i-shield"/></svg>Ảnh được xử lý hoàn toàn trên thiết bị của bạn và không bao giờ được gửi lên máy chủ.</p>
+      </section>
+    </div>
+  </main>
+
+  <div class="px-modal" id="cmpModal" role="dialog" aria-modal="true" aria-labelledby="cmpTitle" hidden>
+    <div class="px-modal-box">
+      <div class="px-modal-head">
+        <div>
+          <h3 id="cmpTitle">So sánh trước và sau nén</h3>
+          <p class="px-modal-sub" id="cmpSub"></p>
+        </div>
+        <button type="button" class="px-icon-btn" id="cmpClose" aria-label="Đóng"><svg class="px-ico"><use href="#i-x"/></svg></button>
+      </div>
+      <div class="px-cmp" id="cmpBox">
+        <img id="cmpBefore" alt="Trước khi nén" />
+        <div class="px-cmp-after" id="cmpAfterWrap"><img id="cmpAfter" alt="Sau khi nén" /></div>
+        <div class="px-cmp-handle" id="cmpHandle"></div>
+        <span class="px-cmp-tag px-cmp-tag--l">Trước</span>
+        <span class="px-cmp-tag px-cmp-tag--r">Sau</span>
+      </div>
+      <p class="px-modal-hint">Kéo thanh giữa hoặc dùng phím ← →. “Trước” là ảnh đã cắt và resize nhưng chưa nén.</p>
+    </div>
+  </div>
+
+  <footer class="pd-footer">
+      <p class="pd-eco-line">Hệ sinh thái của ThS. Đặng Quốc Phong: <a href="https://phongdang.io.vn" target="_blank" rel="noopener noreferrer">phongdang.io.vn</a> · <a href="https://classtools.vn" target="_blank" rel="noopener noreferrer">classtools.vn</a></p>
+    <div class="pd-container pd-footer__inner px-shell">
+      <div>© 2026 PixPress · <a href="https://phongdang.io.vn" target="_blank" rel="noopener noreferrer">ThS. Đặng Quốc Phong</a></div>
+    </div>
+  </footer>
+
+  <script type="module" src="./vendor/pdui/pdui.js"></script>
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>
